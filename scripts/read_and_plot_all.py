@@ -4,18 +4,17 @@ import pyart
 import matplotlib.pyplot as plt
 
 def plot_radar_with_bounds(radar, field, image_filename, bounds_filename, cmap="NWSRef", vmin=None, vmax=None):
-    from matplotlib import ticker
-
-    # Set up output paths
+    # Paths
     image_path = os.path.join("../static", image_filename)
     bounds_path = os.path.join("../static", bounds_filename)
 
     print(f"🖼️ Plotting {field} image with transparent background...")
 
-    # Create standard plot using Py-ART RadarDisplay
+    # Set up figure and axis
     fig, ax = plt.subplots(figsize=(8, 8), dpi=100)
     display = pyart.graph.RadarDisplay(radar)
 
+    # Plot without embellish (removed due to error)
     display.plot_ppi(
         field=field,
         sweep=0,
@@ -23,15 +22,13 @@ def plot_radar_with_bounds(radar, field, image_filename, bounds_filename, cmap="
         vmin=vmin,
         vmax=vmax,
         cmap=cmap,
-        colorbar_flag=False,
-        embellish=False,
+        colorbar_flag=False
     )
 
-    # Remove all labels and axes
+    # Strip all frame elements
     ax.set_title("")
     ax.set_xticks([])
     ax.set_yticks([])
-    ax.set_aspect("equal", adjustable="box")
     ax.set_axis_off()
 
     # Save image
@@ -39,17 +36,17 @@ def plot_radar_with_bounds(radar, field, image_filename, bounds_filename, cmap="
     plt.close()
     print(f"✅ Saved image to {image_path}")
 
-    # Compute approximate bounds
+    # Compute bounds for overlay
     lat = radar.latitude['data'][0]
     lon = radar.longitude['data'][0]
-    max_range_km = radar.range['data'][-1] / 1000.0  # meters to km
-    degree_delta = max_range_km / 111.0  # ~111km per degree
+    max_range_km = radar.range['data'][-1] / 1000.0
+    delta_deg = max_range_km / 111.0
 
     bounds = {
-        "west": lon - degree_delta,
-        "east": lon + degree_delta,
-        "south": lat - degree_delta,
-        "north": lat + degree_delta
+        "west": lon - delta_deg,
+        "east": lon + delta_deg,
+        "south": lat - delta_deg,
+        "north": lat + delta_deg
     }
 
     with open(bounds_path, "w") as f:
@@ -58,7 +55,6 @@ def plot_radar_with_bounds(radar, field, image_filename, bounds_filename, cmap="
 
 
 def main():
-    # Read latest filename
     with open("latest_filename.txt", "r") as f:
         radar_file = f.read().strip()
 
@@ -69,7 +65,6 @@ def main():
 
     os.makedirs("../static", exist_ok=True)
 
-    # Plot reflectivity
     plot_radar_with_bounds(
         radar,
         field="reflectivity",
