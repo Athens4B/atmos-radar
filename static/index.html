@@ -1,91 +1,54 @@
-<meta charset="utf-8" />
-<title>Atmos-Radar</title>
-<meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
+
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Atmos Radar Map</title>
+  <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
   <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet" />
-<script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
-  <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet" />
-<style>
-body { margin: 0; padding: 0; }
-#map { position: absolute; top: 0; bottom: 0; width: 100%; }
-</style>
+  <style>
+    body { margin:0; padding:0; }
+    #map { position:absolute; top:0; bottom:0; width:100%; }
+  </style>
 </head>
 <body>
 <div id="map"></div>
-
 <script>
-    mapboxgl.accessToken = 'pk.eyJ1Ijoic3RldmViNzgiLCJhIjoiY205OTBzc3dpMDF0ZjJqcHRwOXhqYTJkbSJ9.suk6_mA7Rb3TeKmDHJM1XA';
+  mapboxgl.accessToken = 'pk.eyJ1Ijoic3RldmViNzgiLCJhIjoiY205OTBzc3dpMDF0ZjJqcHRwOXhqYTJkbSJ9.suk6_mA7Rb3TeKmDHJM1XA';
+  const map = new mapboxgl.Map({
+    container: 'map',
+    style: 'mapbox://styles/steveb78/cm9nasayi00gs01rw4ah5blzc',
+    center: [-84.1, 33.63],
+    zoom: 6
+  });
 
-    mapboxgl.accessToken = 'pk.eyJ1Ijoic3RldmViNzgiLCJhIjoiY205OTBzc3dpMDF0ZjJqcHRwOXhqYTJkbSJ9.suk6_mA7Rb3TeKmDHJM1XA'; // Replace with your token
-const map = new mapboxgl.Map({
-container: 'map',
-style: 'mapbox://styles/steveb78/cm9nasayi00gs01rw4ah5blzc',
-      center: [-84.5, 33.36], // Center near KFFC (Atlanta WFO)
-      center: [-84.253, 33.363], // Approx KFFC
-zoom: 7
-});
+  async function loadRadarOverlay() {
+    const boundsResponse = await fetch('/static/latest_radar_bounds.json');
+    const boundsData = await boundsResponse.json();
 
-    async function loadRadarOverlay() {
-      try {
-        const pgwUrl = '/static/latest_radar_reflectivity.pgw';
-        const pngUrl = '/static/latest_radar_reflectivity.png';
-
-        // Fetch PGW contents
-        const response = await fetch(pgwUrl);
-        const text = await response.text();
-        const [pixelSizeX, rotation1, rotation2, pixelSizeY, upperLeftX, upperLeftY] = text.trim().split('\n').map(parseFloat);
-
-        // Get image dimensions
-        const img = new Image();
-        img.src = pngUrl;
-        await img.decode();
-
-        const width = img.width;
-        const height = img.height;
-
-        // Calculate image bounds (PGW origin is top-left)
-        const west = upperLeftX;
-        const north = upperLeftY;
-        const east = west + (width * pixelSizeX);
-        const south = north + (height * pixelSizeY); // Note: pixelSizeY is negative in north-up
-
-        const bounds = [[west, south], [east, north]];
-
-        // Add the overlay
-        map.on('load', () => {
     map.on('load', () => {
-      fetch('/static/latest_radar_bounds.json')
-        .then(res => res.json())
-        .then(bounds => {
-map.addSource('radar-image', {
-type: 'image',
-            url: pngUrl,
-            coordinates: [
-              [west, north],
-              [east, north],
-              [east, south],
-              [west, south]
-            ]
-            url: '/static/latest_radar_reflectivity.png',
-            coordinates: bounds
-});
+      map.addSource('radar', {
+        type: 'image',
+        url: '/static/latest_radar_reflectivity.png',
+        coordinates: [
+          [boundsData.west, boundsData.north],
+          [boundsData.east, boundsData.north],
+          [boundsData.east, boundsData.south],
+          [boundsData.west, boundsData.south]
+        ]
+      });
 
-map.addLayer({
-id: 'radar-layer',
-type: 'raster',
-source: 'radar-image',
-paint: {
-              'raster-opacity': 0.8
-              'raster-opacity': 0.85
-}
-});
-});
-      } catch (error) {
-        console.error("Failed to load radar overlay:", error);
-      }
-    }
-  }
-    loadRadarOverlay();
+      map.addLayer({
+        id: 'radar-layer',
+        type: 'raster',
+        source: 'radar',
+        paint: { 'raster-opacity': 0.85 }
+      });
     });
+  }
+
+  loadRadarOverlay();
 </script>
 </body>
 </html>
