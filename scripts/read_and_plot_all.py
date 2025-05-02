@@ -20,7 +20,6 @@ def plot_field(radar, field, filename):
         title_flag=False,
         axislabels_flag=False,
     )
-    display.set_limits(xlim=[-170, 130], ylim=[-170, 130])  # shifted left & down
 
     # Clean transparent background
     ax.set_axis_off()
