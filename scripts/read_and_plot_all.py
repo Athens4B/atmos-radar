@@ -7,104 +7,88 @@ import matplotlib.pyplot as plt
 import cartopy.crs as ccrs
 
 
-def save_world_file(output_image, bounds):
-    # Write PGW (PNG World File) for georeferencing in Mapbox
-    pgw_path = output_image.replace(".png", ".pgw")
-    west, east = bounds["west"], bounds["east"]
-    south, north = bounds["south"], bounds["north"]
-
-    # Calculate pixel size
-    img_width = 800  # Based on figsize=(8, 8) and dpi=100
-    img_height = 800
-    pixel_x = (east - west) / img_width
-    pixel_y = (south - north) / img_height  # Note: negative for north-up
+def save_world_file(image_path, bounds, width, height):
+    pgw_path = image_path.replace(".png", ".pgw")
+    west, east, south, north = bounds
+    pixel_x = (east - west) / width
+    pixel_y = (south - north) / height  # Negative for north-up
 
     with open(pgw_path, "w") as f:
-        f.write(f"{pixel_x:.10f}\n")  # x pixel size
-        f.write("0.0\n")              # rotation (0)
-        f.write("0.0\n")              # rotation (0)
-        f.write(f"{pixel_y:.10f}\n")  # y pixel size (negative)
-        f.write(f"{west + pixel_x / 2:.10f}\n")  # x of center of upper-left pixel
-        f.write(f"{north + pixel_y / 2:.10f}\n")  # y of center of upper-left pixel
+        f.write(f"{pixel_x:.10f}\n")
+        f.write("0.0\n")
+        f.write("0.0\n")
+        f.write(f"{pixel_y:.10f}\n")
+        f.write(f"{west + pixel_x / 2:.10f}\n")
+        f.write(f"{north + pixel_y / 2:.10f}\n")
 
 
-def plot_radar_with_bounds(radar, field, image_filename, bounds_filename, cmap="NWSRef", vmin=None, vmax=None):
+def plot_radar_with_geo(radar, field, image_filename, bounds_filename, cmap="NWSRef", vmin=None, vmax=None):
     display = pyart.graph.RadarMapDisplay(radar)
 
     image_path = os.path.join("../static", image_filename)
     bounds_path = os.path.join("../static", bounds_filename)
 
-    print(f"🖼️ Plotting {field} image with transparent background...")
-
     fig = plt.figure(figsize=(8, 8), dpi=100)
-    proj = ccrs.PlateCarree()
-    ax = fig.add_subplot(111, projection=proj)
+    ax = fig.add_subplot(111, projection=ccrs.PlateCarree())
 
-    display.plot_ppi(
+    display.plot_ppi_map(
         field=field,
-        sweep=0,
         ax=ax,
         vmin=vmin,
         vmax=vmax,
         cmap=cmap,
-        colorbar_flag=False
+        colorbar_flag=False,
+        embellish=False,
+        lat_lines=[],
+        lon_lines=[]
     )
 
-    # Remove metadata, ticks, and frame
-    ax.set_title("")
-    ax.grid(False)
     ax.set_xticks([])
     ax.set_yticks([])
     ax.set_frame_on(False)
 
+    extent = ax.get_extent()  # (west, east, south, north)
+    width, height = fig.get_size_inches() * fig.dpi
+
     plt.savefig(image_path, transparent=True, bbox_inches="tight", pad_inches=0)
     plt.close()
+
     print(f"✅ Saved image to {image_path}")
-
-    # Bounding box calculation
-    lat = radar.latitude["data"][0]
-    lon = radar.longitude["data"][0]
-    max_range_km = radar.range["data"][-1] / 1000.0
-    delta_deg = max_range_km / 111.0
-
-    bounds = {
-        "west": lon - delta_deg,
-        "east": lon + delta_deg,
-        "south": lat - delta_deg,
-        "north": lat + delta_deg,
-    }
+    print(f"🗺️  Bounds: {extent}")
 
     with open(bounds_path, "w") as f:
-        json.dump(bounds, f)
+        json.dump({
+            "west": extent[0],
+            "east": extent[1],
+            "south": extent[2],
+            "north": extent[3]
+        }, f)
     print(f"✅ Saved bounds to {bounds_path}")
 
-    save_world_file(image_path, bounds)
-    print(f"🌍 World file saved alongside image.")
+    save_world_file(image_path, extent, width, height)
+    print(f"✅ Saved PGW to match image.")
 
 
 def main():
-    try:
-        with open("latest_filename.txt", "r") as f:
-            radar_file = f.read().strip()
-    except FileNotFoundError:
-        print("❌ latest_filename.txt not found.")
-        return
+    with open("latest_filename.txt", "r") as f:
+        radar_file = f.read().strip()
 
-    print(f"Reading radar file: {radar_file}")
+    print(f"📂 Reading radar file: {radar_file}")
     radar = pyart.io.read(radar_file)
-    print("✅ Successfully read radar file.")
-    print("📡 Available fields:", list(radar.fields.keys()))
+
+    print("✅ Radar loaded.")
+    print("📡 Fields:", list(radar.fields.keys()))
 
     os.makedirs("../static", exist_ok=True)
 
-    plot_radar_with_bounds(
+    plot_radar_with_geo(
         radar,
         field="reflectivity",
         image_filename="latest_radar_reflectivity.png",
         bounds_filename="latest_radar_bounds.json",
         cmap="NWSRef",
         vmin=-32,
-        vmax=64,
+        vmax=64
     )
 
 
