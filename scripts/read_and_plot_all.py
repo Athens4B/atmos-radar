@@ -1,64 +1,68 @@
 import os
 import pyart
 import matplotlib.pyplot as plt
-from matplotlib import rcParams
 from datetime import datetime
 
-rcParams["figure.facecolor"] = "none"
-
-def read_latest_radar_file():
-    try:
-        with open("latest_filename.txt", "r") as f:
-            radar_file = f.read().strip()
-            print(f"Reading radar file: {radar_file}")
-            radar = pyart.io.read(radar_file)
-            print("✅ Successfully read radar file.")
-            print("📡 Available fields:", list(radar.fields.keys()))
-            return radar
-    except FileNotFoundError:
-        print("❌ latest_filename.txt not found.")
-        return None
-
-def plot_field(radar, field_name, output_name):
-    if field_name not in radar.fields:
-        print(f"⚠️  Skipping {field_name} — field not found in file.")
-        return
+def plot_field(radar, field, filename):
+    print(f"🖼️ Plotting {field} image with transparent background...")
 
     display = pyart.graph.RadarDisplay(radar)
+
+    # Set up the plot
     fig = plt.figure(figsize=(6, 6), dpi=150)
     ax = fig.add_subplot(111)
 
-    print(f"🖼️ Plotting {field_name} image with transparent background...")
-
-    # Choose valid colormaps since pyart_* are not always available
-    cmap = "turbo" if field_name == "reflectivity" else "seismic"
-
+    # Plot the PPI and adjust limits to nudge left
     display.plot_ppi(
-        field=field_name,
+        field=field,
         ax=ax,
-        cmap=cmap,
-        vmin=-32 if field_name == "reflectivity" else -60,
-        vmax=64 if field_name == "reflectivity" else 60,
-        colorbar_label=field_name.replace("_", " ").title(),
+        cmap="NWSRef" if field == "reflectivity" else "viridis",
+        colorbar_flag=False,
+        title_flag=False,
+        axislabels_flag=False,
     )
-    display.set_limits(ylim=[-150, 150], xlim=[-150, 150])
-    plt.axis("off")
+    display.set_limits(ylim=[-150, 150], xlim=[-155, 145])  # Nudge left
 
-    output_path = os.path.join("../static", output_name)
+    # Remove axes and background
+    ax.set_axis_off()
+    fig.patch.set_alpha(0.0)
+    ax.set_facecolor((0, 0, 0, 0))
+
+    # Save the image
+    output_path = f"../static/latest_radar_{field}.png"
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     plt.savefig(output_path, bbox_inches="tight", pad_inches=0, transparent=True)
     plt.close()
     print(f"✅ Saved {output_path}")
 
 def main():
-    radar = read_latest_radar_file()
-    if radar is None:
+    try:
+        with open("latest_filename.txt", "r") as f:
+            radar_file = f.read().strip()
+    except FileNotFoundError:
+        print("❌ latest_filename.txt not found.")
         return
 
-    plot_field(radar, "reflectivity", "latest_radar_reflectivity.png")
-    plot_field(radar, "velocity", "latest_radar_velocity.png")
-    plot_field(radar, "differential_reflectivity", "latest_radar_differential_reflectivity.png")
-    plot_field(radar, "cross_correlation_ratio", "latest_radar_correlation_ratio.png")
+    print(f"Reading radar file: {radar_file}")
+    try:
+        radar = pyart.io.read(radar_file)
+        print("✅ Successfully read radar file.")
+    except Exception as e:
+        print(f"❌ Failed to read radar file: {e}")
+        return
+
+    print("📡 Available fields:", list(radar.fields.keys()))
+
+    for field in [
+        "reflectivity",
+        "velocity",
+        "differential_reflectivity",
+        "cross_correlation_ratio",
+    ]:
+        if field in radar.fields:
+            plot_field(radar, field, f"latest_radar_{field}.png")
+        else:
+            print(f"⚠️  Skipping {field} — field not found in file.")
 
 if __name__ == "__main__":
     main()
