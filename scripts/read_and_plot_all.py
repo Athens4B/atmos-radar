@@ -1,36 +1,53 @@
 import os
 import pyart
 import matplotlib.pyplot as plt
-from datetime import datetime
+import cartopy.crs as ccrs
+import json
 
-def plot_field(radar, field, filename):
-    print(f"🖼️ Plotting {field} image with transparent background...")
+def plot_radar_with_bounds(radar_file, output_image_path, bounds_json_path):
+    radar = pyart.io.read(radar_file)
+    display = pyart.graph.RadarMapDisplay(radar)
 
-    display = pyart.graph.RadarDisplay(radar)
+    # Output directory
+    os.makedirs(os.path.dirname(output_image_path), exist_ok=True)
 
-    fig = plt.figure(figsize=(6, 6), dpi=150)
-    ax = fig.add_subplot(111)
+    # Use PlateCarree projection (common for web mapping)
+    proj = ccrs.PlateCarree()
 
-    # Shift image to bottom left by changing xlim and ylim
-    display.plot_ppi(
-        field=field,
+    # Create figure and axis
+    fig = plt.figure(figsize=(8, 8), dpi=150)
+    ax = fig.add_subplot(1, 1, 1, projection=proj)
+
+    # Plot radar PPI
+    display.plot_ppi_map(
+        field="reflectivity",
         ax=ax,
-        cmap="NWSRef" if field == "reflectivity" else "viridis",
         colorbar_flag=False,
         title_flag=False,
-        axislabels_flag=False,
+        embellish=False,
+        projection=proj
     )
 
-    # Clean transparent background
-    ax.set_axis_off()
-    fig.patch.set_alpha(0.0)
-    ax.set_facecolor((0, 0, 0, 0))
+    # Get extent and apply to axis
+    ax.set_extent(display._get_map_extent(), crs=proj)
+    extent = ax.get_extent(crs=proj)
 
-    output_path = f"../static/latest_radar_{field}.png"
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    plt.savefig(output_path, bbox_inches="tight", pad_inches=0, transparent=True)
-    plt.close()
-    print(f"✅ Saved {output_path}")
+    # Save PNG with transparent background
+    fig.savefig(output_image_path, bbox_inches="tight", pad_inches=0, transparent=True)
+    plt.close(fig)
+    print(f"✅ Saved: {output_image_path}")
+
+    # Save bounds JSON for Mapbox image overlay
+    west, east, south, north = extent[0], extent[1], extent[2], extent[3]
+    bounds = [
+        [west, north],
+        [east, north],
+        [east, south],
+        [west, south]
+    ]
+    with open(bounds_json_path, "w") as f:
+        json.dump(bounds, f)
+    print(f"✅ Saved bounds: {bounds_json_path}")
 
 def main():
     try:
@@ -40,26 +57,11 @@ def main():
         print("❌ latest_filename.txt not found.")
         return
 
-    print(f"Reading radar file: {radar_file}")
-    try:
-        radar = pyart.io.read(radar_file)
-        print("✅ Successfully read radar file.")
-    except Exception as e:
-        print(f"❌ Failed to read radar file: {e}")
-        return
-
-    print("📡 Available fields:", list(radar.fields.keys()))
-
-    for field in [
-        "reflectivity",
-        "velocity",
-        "differential_reflectivity",
-        "cross_correlation_ratio",
-    ]:
-        if field in radar.fields:
-            plot_field(radar, field, f"latest_radar_{field}.png")
-        else:
-            print(f"⚠️  Skipping {field} — field not found in file.")
+    plot_radar_with_bounds(
+        radar_file=radar_file,
+        output_image_path="../static/latest_radar_reflectivity.png",
+        bounds_json_path="../static/latest_radar_bounds.json"
+    )
 
 if __name__ == "__main__":
     main()
