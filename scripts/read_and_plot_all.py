@@ -7,16 +7,36 @@ import matplotlib.pyplot as plt
 import cartopy.crs as ccrs
 
 
+def save_world_file(output_image, bounds):
+    # Write PGW (PNG World File) for georeferencing in Mapbox
+    pgw_path = output_image.replace(".png", ".pgw")
+    west, east = bounds["west"], bounds["east"]
+    south, north = bounds["south"], bounds["north"]
+
+    # Calculate pixel size
+    img_width = 800  # Based on figsize=(8, 8) and dpi=100
+    img_height = 800
+    pixel_x = (east - west) / img_width
+    pixel_y = (south - north) / img_height  # Note: negative for north-up
+
+    with open(pgw_path, "w") as f:
+        f.write(f"{pixel_x:.10f}\n")  # x pixel size
+        f.write("0.0\n")              # rotation (0)
+        f.write("0.0\n")              # rotation (0)
+        f.write(f"{pixel_y:.10f}\n")  # y pixel size (negative)
+        f.write(f"{west + pixel_x / 2:.10f}\n")  # x of center of upper-left pixel
+        f.write(f"{north + pixel_y / 2:.10f}\n")  # y of center of upper-left pixel
+
+
 def plot_radar_with_bounds(radar, field, image_filename, bounds_filename, cmap="NWSRef", vmin=None, vmax=None):
     display = pyart.graph.RadarMapDisplay(radar)
 
-    # Output paths
     image_path = os.path.join("../static", image_filename)
     bounds_path = os.path.join("../static", bounds_filename)
 
     print(f"🖼️ Plotting {field} image with transparent background...")
 
-    fig = plt.figure(figsize=(8, 8), dpi=150)
+    fig = plt.figure(figsize=(8, 8), dpi=100)
     proj = ccrs.PlateCarree()
     ax = fig.add_subplot(111, projection=proj)
 
@@ -30,7 +50,8 @@ def plot_radar_with_bounds(radar, field, image_filename, bounds_filename, cmap="
         colorbar_flag=False
     )
 
-    # Clean image output (no borders, ticks, or grid)
+    # Remove metadata, ticks, and frame
+    ax.set_title("")
     ax.grid(False)
     ax.set_xticks([])
     ax.set_yticks([])
@@ -40,11 +61,11 @@ def plot_radar_with_bounds(radar, field, image_filename, bounds_filename, cmap="
     plt.close()
     print(f"✅ Saved image to {image_path}")
 
-    # Create bounds for geo-referencing (for Mapbox overlay)
-    lat = radar.latitude['data'][0]
-    lon = radar.longitude['data'][0]
-    max_range_km = radar.range['data'][-1] / 1000.0
-    delta_deg = max_range_km / 111.0  # Approximate degrees per km
+    # Bounding box calculation
+    lat = radar.latitude["data"][0]
+    lon = radar.longitude["data"][0]
+    max_range_km = radar.range["data"][-1] / 1000.0
+    delta_deg = max_range_km / 111.0
 
     bounds = {
         "west": lon - delta_deg,
@@ -56,6 +77,9 @@ def plot_radar_with_bounds(radar, field, image_filename, bounds_filename, cmap="
     with open(bounds_path, "w") as f:
         json.dump(bounds, f)
     print(f"✅ Saved bounds to {bounds_path}")
+
+    save_world_file(image_path, bounds)
+    print(f"🌍 World file saved alongside image.")
 
 
 def main():
@@ -73,7 +97,6 @@ def main():
 
     os.makedirs("../static", exist_ok=True)
 
-    # Plot reflectivity
     plot_radar_with_bounds(
         radar,
         field="reflectivity",
@@ -81,7 +104,7 @@ def main():
         bounds_filename="latest_radar_bounds.json",
         cmap="NWSRef",
         vmin=-32,
-        vmax=64
+        vmax=64,
     )
 
 
