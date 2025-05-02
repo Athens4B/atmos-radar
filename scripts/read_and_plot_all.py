@@ -8,47 +8,46 @@ def plot_radar_with_bounds(radar_file, output_image_path, bounds_json_path):
     radar = pyart.io.read(radar_file)
     display = pyart.graph.RadarMapDisplay(radar)
 
-    # Radar site lat/lon
+    # Radar site location
     radar_lat = radar.latitude['data'][0]
     radar_lon = radar.longitude['data'][0]
 
-    # Get max range in degrees (approx 1° ≈ 111 km)
+    # Approximate coverage range in degrees
     max_range_km = radar.range['data'][-1] / 1000.0
-    deg_padding = max_range_km / 111.0
+    degree_padding = max_range_km / 111.0  # 1 degree ≈ 111 km
 
-    west = radar_lon - deg_padding
-    east = radar_lon + deg_padding
-    south = radar_lat - deg_padding
-    north = radar_lat + deg_padding
+    west = radar_lon - degree_padding
+    east = radar_lon + degree_padding
+    south = radar_lat - degree_padding
+    north = radar_lat + degree_padding
 
-    # Plot image
     fig = plt.figure(figsize=(8, 8), dpi=150)
     ax = fig.add_subplot(1, 1, 1, projection=ccrs.PlateCarree())
 
-    display.plot_ppi(
+    display.plot_ppi_map(
         field="reflectivity",
         ax=ax,
+        cmap="turbo",  # use any valid colormap
         colorbar_flag=False,
-        title_flag=False,
-        embellish=False,
+        title_flag=False
     )
 
     ax.set_extent([west, east, south, north], crs=ccrs.PlateCarree())
     plt.axis("off")
     plt.savefig(output_image_path, bbox_inches="tight", pad_inches=0, transparent=True)
     plt.close()
-    print(f"✅ Saved: {output_image_path}")
+    print(f"✅ Saved image to {output_image_path}")
 
-    # Save geographic bounds
+    # Save bounding box as JSON
     bounds = [
-        [west, north],  # Top-left
-        [east, north],  # Top-right
-        [east, south],  # Bottom-right
-        [west, south]   # Bottom-left
+        [west, north],  # top-left
+        [east, north],  # top-right
+        [east, south],  # bottom-right
+        [west, south]   # bottom-left
     ]
     with open(bounds_json_path, "w") as f:
         json.dump(bounds, f)
-    print(f"✅ Saved bounds: {bounds_json_path}")
+    print(f"✅ Saved bounds to {bounds_json_path}")
 
 def main():
     try:
