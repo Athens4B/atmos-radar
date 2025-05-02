@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Radar Site Map</title>
+  <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
+  <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet" />
+  <style>
+    body { margin: 0; padding: 0; }
+    #map { position: absolute; top: 0; bottom: 0; width: 100%; }
+  </style>
+</head>
+<body>
+
+<div id="map"></div>
+
+<script>
+  mapboxgl.accessToken = 'pk.eyJ1Ijoic3RldmViNzgiLCJhIjoiY205OTBzc3dpMDF0ZjJqcHRwOXhqYTJkbSJ9.suk6_mA7Rb3TeKmDHJM1XA';
+
+  const map = new mapboxgl.Map({
+    container: 'map',
+    style: 'mapbox://styles/mapbox/light-v11',
+    center: [-84, 34],
+    zoom: 5
+  });
+
+  const radarSites = {
+    "type": "FeatureCollection",
+    "features": [
+      {
+        "type": "Feature",
+        "properties": { "id": "KJKL", "name": "Jackson, KY" },
+        "geometry": { "type": "Point", "coordinates": [-83.31, 37.59] }
+      },
+      {
+        "type": "Feature",
+        "properties": { "id": "KATL", "name": "Atlanta, GA" },
+        "geometry": { "type": "Point", "coordinates": [-84.44, 33.63] }
+      },
+      {
+        "type": "Feature",
+        "properties": { "id": "KBMX", "name": "Birmingham, AL" },
+        "geometry": { "type": "Point", "coordinates": [-86.77, 33.17] }
+      }
+    ]
+  };
+
+  map.on('load', () => {
+    map.addSource('radarSites', {
+      type: 'geojson',
+      data: radarSites
+    });
+
+    map.addLayer({
+      id: 'radar-points',
+      type: 'circle',
+      source: 'radarSites',
+      paint: {
+        'circle-radius': 6,
+        'circle-color': '#007cbf'
+      }
+    });
+
+    map.on('click', 'radar-points', (e) => {
+      const feature = e.features[0];
+      const radarId = feature.properties.id;
+      alert(`Radar Site: ${radarId}`);
+      // later: trigger fetch using radarId
+    });
+
+    map.on('mouseenter', 'radar-points', () => {
+      map.getCanvas().style.cursor = 'pointer';
+    });
+
+    map.on('mouseleave', 'radar-points', () => {
+      map.getCanvas().style.cursor = '';
+    });
+  });
+</script>
+
+</body>
+</html>

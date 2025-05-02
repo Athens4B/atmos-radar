@@ -1,0 +1,15 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "site": "KJKL"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-83.318, 37.590]
+      }
+    }
+  ]
+}

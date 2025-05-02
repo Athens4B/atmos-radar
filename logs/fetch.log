@@ -1,0 +1,4 @@
+Traceback (most recent call last):
+  File "/root/atmos-radar/scripts/fetch_and_process.py", line 5, in <module>
+    import requests
+ModuleNotFoundError: No module named 'requests'

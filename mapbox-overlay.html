@@ -1,0 +1,19 @@
+<script>
+mapboxgl.accessToken = 'your_mapbox_token';
+const map = new mapboxgl.Map({ /* your config */ });
+
+map.on('load', () => {
+  map.addSource('radar', {
+    type: 'image',
+    url: 'http://your-ip/radar/KOUN.png',
+    coordinates: [ [lon1, lat1], [lon2, lat1], [lon2, lat2], [lon1, lat2] ]
+  });
+
+  map.addLayer({
+    id: 'radar-layer',
+    type: 'raster',
+    source: 'radar',
+    paint: { 'raster-opacity': 0.75 }
+  });
+});
+</script>
