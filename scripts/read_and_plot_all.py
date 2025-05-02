@@ -8,11 +8,10 @@ def plot_field(radar, field, filename):
 
     display = pyart.graph.RadarDisplay(radar)
 
-    # Set up the plot
     fig = plt.figure(figsize=(6, 6), dpi=150)
     ax = fig.add_subplot(111)
 
-    # Plot the PPI and adjust limits to nudge left
+    # Shift image to bottom left by changing xlim and ylim
     display.plot_ppi(
         field=field,
         ax=ax,
@@ -21,14 +20,13 @@ def plot_field(radar, field, filename):
         title_flag=False,
         axislabels_flag=False,
     )
-    display.set_limits(ylim=[-150, 150], xlim=[-155, 145])  # Nudge left
+    display.set_limits(xlim=[-170, 130], ylim=[-170, 130])  # shifted left & down
 
-    # Remove axes and background
+    # Clean transparent background
     ax.set_axis_off()
     fig.patch.set_alpha(0.0)
     ax.set_facecolor((0, 0, 0, 0))
 
-    # Save the image
     output_path = f"../static/latest_radar_{field}.png"
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     plt.savefig(output_path, bbox_inches="tight", pad_inches=0, transparent=True)
