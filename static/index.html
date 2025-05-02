@@ -2,57 +2,57 @@
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>Atmos Radar</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Atmos Radar Viewer</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
   <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet" />
   <style>
-    body, html { margin: 0; padding: 0; height: 100%; }
-    #map { width: 100%; height: 100%; }
+    body { margin: 0; padding: 0; }
+    #map { position: absolute; top: 0; bottom: 0; width: 100%; }
   </style>
 </head>
 <body>
-<div id="map"></div>
-<script>
-  mapboxgl.accessToken = 'pk.eyJ1Ijoic3RldmViNzgiLCJhIjoiY205OTBzc3dpMDF0ZjJqcHRwOXhqYTJkbSJ9.suk6_mA7Rb3TeKmDHJM1XA';
-  const map = new mapboxgl.Map({
-    container: 'map',
-    style: 'mapbox://styles/steveb78/cm9nasayi00gs01rw4ah5blzc',
-    center: [-84.253, 33.363], // Near KFFC
-    zoom: 6
-  });
-
-  async function addRadarOverlay() {
-    const boundsResp = await fetch('/static/latest_radar_bounds.json');
-    const boundsData = await boundsResp.json();
-
-    const imageBounds = [
-      [boundsData.west, boundsData.south],
-      [boundsData.east, boundsData.north]
-    ];
-
-    map.on('load', () => {
-      map.addSource('radar-overlay', {
-        type: 'image',
-        url: '/static/latest_radar_reflectivity.png',
-        coordinates: [
-          [boundsData.west, boundsData.north],
-          [boundsData.east, boundsData.north],
-          [boundsData.east, boundsData.south],
-          [boundsData.west, boundsData.south]
-        ]
-      });
-
-      map.addLayer({
-        id: 'radar-layer',
-        type: 'raster',
-        source: 'radar-overlay',
-        paint: { 'raster-opacity': 0.85 }
-      });
+  <div id="map"></div>
+  <script>
+    mapboxgl.accessToken = 'YOUR_MAPBOX_ACCESS_TOKEN';
+    const map = new mapboxgl.Map({
+      container: 'map',
+      style: 'mapbox://styles/mapbox/dark-v10',
+      center: [-84.5, 33.3], // center near KFFC
+      zoom: 7
     });
-  }
 
-  addRadarOverlay();
-</script>
+    async function loadRadarOverlay() {
+      const boundsRes = await fetch('latest_radar_bounds.json');
+      const boundsJson = await boundsRes.json();
+
+      const radarBounds = [
+        [boundsJson.west, boundsJson.south],
+        [boundsJson.east, boundsJson.north]
+      ];
+
+      map.on('load', () => {
+        map.addSource('radar', {
+          type: 'image',
+          url: 'latest_radar_reflectivity.png',
+          coordinates: [
+            [boundsJson.west, boundsJson.north],
+            [boundsJson.east, boundsJson.north],
+            [boundsJson.east, boundsJson.south],
+            [boundsJson.west, boundsJson.south]
+          ]
+        });
+
+        map.addLayer({
+          id: 'radar-layer',
+          type: 'raster',
+          source: 'radar',
+          paint: { 'raster-opacity': 0.8 }
+        });
+      });
+    }
+
+    loadRadarOverlay();
+  </script>
 </body>
 </html>
