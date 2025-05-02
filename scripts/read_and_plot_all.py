@@ -24,15 +24,26 @@ def save_world_file(image_path, bounds, width, height):
 
 def plot_radar_with_geo(radar, field, image_filename, bounds_filename, cmap="NWSRef", vmin=None, vmax=None):
     display = pyart.graph.RadarMapDisplay(radar)
-
     image_path = os.path.join("../static", image_filename)
     bounds_path = os.path.join("../static", bounds_filename)
 
+    # Set desired zoom area (100km radius)
+    radar_lat = radar.latitude['data'][0]
+    radar_lon = radar.longitude['data'][0]
+    range_km = 150
+    delta_deg = range_km / 111.0
+
+    west = radar_lon - delta_deg
+    east = radar_lon + delta_deg
+    south = radar_lat - delta_deg
+    north = radar_lat + delta_deg
+
+    # Create figure with consistent size
     fig = plt.figure(figsize=(8, 8), dpi=100)
     ax = fig.add_subplot(111, projection=ccrs.PlateCarree())
 
-    # Plot radar data (assumes sweep 0 is full azimuth)
-    display.plot_ppi_map(
+    # Plot radar PPI
+    pm = display.plot_ppi_map(
         field=field,
         sweep=0,
         ax=ax,
@@ -45,33 +56,35 @@ def plot_radar_with_geo(radar, field, image_filename, bounds_filename, cmap="NWS
         lon_lines=[]
     )
 
-    # Strip extra metadata
+    # Remove axis labels, ticks, and title
+    ax.set_title("")  # Remove "KFFC 0.5 deg" label
     ax.set_xticks([])
     ax.set_yticks([])
+    ax.set_xlim(west, east)
+    ax.set_ylim(south, north)
     ax.set_axis_off()
+
     fig.patch.set_alpha(0.0)
 
-    # Match bounds to image
-    extent = ax.get_extent()  # (west, east, south, north)
-    width, height = fig.get_size_inches() * fig.dpi
-
-    # Save image exactly as rendered
-    plt.savefig(image_path, transparent=True, bbox_inches=None, pad_inches=0)
+    # Save image and bounds
+    plt.savefig(image_path, transparent=True, bbox_inches='tight', pad_inches=0)
     plt.close()
 
     print(f"✅ Saved image to {image_path}")
-    print(f"🗺️  Bounds: {extent}")
+
+    bounds = {
+        "west": west,
+        "east": east,
+        "south": south,
+        "north": north
+    }
 
     with open(bounds_path, "w") as f:
-        json.dump({
-            "west": extent[0],
-            "east": extent[1],
-            "south": extent[2],
-            "north": extent[3]
-        }, f)
+        json.dump(bounds, f)
     print(f"✅ Saved bounds to {bounds_path}")
 
-    save_world_file(image_path, extent, width, height)
+    width, height = fig.get_size_inches() * fig.dpi
+    save_world_file(image_path, (west, east, south, north), width, height)
     print(f"✅ Saved PGW to match image.")
 
 
