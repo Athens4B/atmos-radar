@@ -1,87 +1,91 @@
-# read_and_plot_all.py
+<meta charset="utf-8" />
+<title>Atmos-Radar</title>
+<meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet" />
+<script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
+  <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet" />
+<style>
+body { margin: 0; padding: 0; }
+#map { position: absolute; top: 0; bottom: 0; width: 100%; }
+</style>
+</head>
+<body>
+<div id="map"></div>
 
-import os
-import json
-import pyart
-import numpy as np
-import matplotlib.pyplot as plt
-import cartopy.crs as ccrs
+<script>
+    mapboxgl.accessToken = 'pk.eyJ1Ijoic3RldmViNzgiLCJhIjoiY205OTBzc3dpMDF0ZjJqcHRwOXhqYTJkbSJ9.suk6_mA7Rb3TeKmDHJM1XA';
 
-def plot_radar_with_bounds(radar, field, image_filename, bounds_filename, cmap="NWSRef", vmin=None, vmax=None):
-    display = pyart.graph.RadarMapDisplay(radar)
+    mapboxgl.accessToken = 'pk.eyJ1Ijoic3RldmViNzgiLCJhIjoiY205OTBzc3dpMDF0ZjJqcHRwOXhqYTJkbSJ9.suk6_mA7Rb3TeKmDHJM1XA'; // Replace with your token
+const map = new mapboxgl.Map({
+container: 'map',
+style: 'mapbox://styles/steveb78/cm9nasayi00gs01rw4ah5blzc',
+      center: [-84.5, 33.36], // Center near KFFC (Atlanta WFO)
+      center: [-84.253, 33.363], // Approx KFFC
+zoom: 7
+});
 
-    # Output paths
-    image_path = os.path.join("../static", image_filename)
-    bounds_path = os.path.join("../static", bounds_filename)
+    async function loadRadarOverlay() {
+      try {
+        const pgwUrl = '/static/latest_radar_reflectivity.pgw';
+        const pngUrl = '/static/latest_radar_reflectivity.png';
 
-    print(f"🖼️ Plotting {field} image with transparent background...")
+        // Fetch PGW contents
+        const response = await fetch(pgwUrl);
+        const text = await response.text();
+        const [pixelSizeX, rotation1, rotation2, pixelSizeY, upperLeftX, upperLeftY] = text.trim().split('\n').map(parseFloat);
 
-    fig = plt.figure(figsize=(8, 8), dpi=150)
-    proj = ccrs.PlateCarree()
-    ax = fig.add_subplot(111, projection=proj)
+        // Get image dimensions
+        const img = new Image();
+        img.src = pngUrl;
+        await img.decode();
 
-    display.plot_ppi(
-        field=field,
-        ax=ax,
-        vmin=vmin,
-        vmax=vmax,
-        cmap=cmap,
-        colorbar_flag=False,
-        embellish=False,
-    )
+        const width = img.width;
+        const height = img.height;
 
-    # Remove gridlines, ticks, and border
-    ax.grid(False)
-    ax.set_xticks([])
-    ax.set_yticks([])
-    ax.set_frame_on(False)
+        // Calculate image bounds (PGW origin is top-left)
+        const west = upperLeftX;
+        const north = upperLeftY;
+        const east = west + (width * pixelSizeX);
+        const south = north + (height * pixelSizeY); // Note: pixelSizeY is negative in north-up
 
-    # Save image
-    plt.savefig(image_path, transparent=True, bbox_inches="tight", pad_inches=0)
-    plt.close()
-    print(f"✅ Saved image to {image_path}")
+        const bounds = [[west, south], [east, north]];
 
-    # Get bounds for JSON export
-    lat, lon = radar.latitude['data'][0], radar.longitude['data'][0]
-    max_range = radar.range['data'][-1] / 1000.0  # km
+        // Add the overlay
+        map.on('load', () => {
+    map.on('load', () => {
+      fetch('/static/latest_radar_bounds.json')
+        .then(res => res.json())
+        .then(bounds => {
+map.addSource('radar-image', {
+type: 'image',
+            url: pngUrl,
+            coordinates: [
+              [west, north],
+              [east, north],
+              [east, south],
+              [west, south]
+            ]
+            url: '/static/latest_radar_reflectivity.png',
+            coordinates: bounds
+});
 
-    # Approximate 1 degree = ~111 km
-    delta_deg = max_range / 111.0
-    bounds = {
-        "west": lon - delta_deg,
-        "east": lon + delta_deg,
-        "south": lat - delta_deg,
-        "north": lat + delta_deg,
+map.addLayer({
+id: 'radar-layer',
+type: 'raster',
+source: 'radar-image',
+paint: {
+              'raster-opacity': 0.8
+              'raster-opacity': 0.85
+}
+});
+});
+      } catch (error) {
+        console.error("Failed to load radar overlay:", error);
+      }
     }
 
-    with open(bounds_path, "w") as f:
-        json.dump(bounds, f)
-    print(f"✅ Saved bounds to {bounds_path}")
-
-
-def main():
-    # Load filename
-    with open("latest_filename.txt", "r") as f:
-        radar_file = f.read().strip()
-
-    print(f"Reading radar file: {radar_file}")
-    radar = pyart.io.read(radar_file)
-    print("✅ Successfully read radar file.")
-    print("📡 Available fields:", list(radar.fields.keys()))
-
-    os.makedirs("../static", exist_ok=True)
-
-    # Plot reflectivity
-    plot_radar_with_bounds(
-        radar,
-        field="reflectivity",
-        image_filename="latest_radar_reflectivity.png",
-        bounds_filename="latest_radar_bounds.json",
-        cmap="NWSRef",
-        vmin=-32,
-        vmax=64,
-    )
-
-
-if __name__ == "__main__":
-    main()
+    loadRadarOverlay();
+    });
+</script>
+</body>
+</html>
