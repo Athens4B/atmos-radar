@@ -31,8 +31,10 @@ def plot_radar_with_geo(radar, field, image_filename, bounds_filename, cmap="NWS
     fig = plt.figure(figsize=(8, 8), dpi=100)
     ax = fig.add_subplot(111, projection=ccrs.PlateCarree())
 
+    # Plot radar data (assumes sweep 0 is full azimuth)
     display.plot_ppi_map(
         field=field,
+        sweep=0,
         ax=ax,
         vmin=vmin,
         vmax=vmax,
@@ -43,14 +45,18 @@ def plot_radar_with_geo(radar, field, image_filename, bounds_filename, cmap="NWS
         lon_lines=[]
     )
 
+    # Strip extra metadata
     ax.set_xticks([])
     ax.set_yticks([])
-    ax.set_frame_on(False)
+    ax.set_axis_off()
+    fig.patch.set_alpha(0.0)
 
+    # Match bounds to image
     extent = ax.get_extent()  # (west, east, south, north)
     width, height = fig.get_size_inches() * fig.dpi
 
-    plt.savefig(image_path, transparent=True, bbox_inches="tight", pad_inches=0)
+    # Save image exactly as rendered
+    plt.savefig(image_path, transparent=True, bbox_inches=None, pad_inches=0)
     plt.close()
 
     print(f"✅ Saved image to {image_path}")
