@@ -1,49 +1,50 @@
 import os
+import json
 import pyart
 import matplotlib.pyplot as plt
 import cartopy.crs as ccrs
-import json
 
 def plot_radar_with_bounds(radar_file, output_image_path, bounds_json_path):
     radar = pyart.io.read(radar_file)
     display = pyart.graph.RadarMapDisplay(radar)
 
-    # Output directory
-    os.makedirs(os.path.dirname(output_image_path), exist_ok=True)
+    # Radar site lat/lon
+    radar_lat = radar.latitude['data'][0]
+    radar_lon = radar.longitude['data'][0]
 
-    # Use PlateCarree projection (common for web mapping)
-    proj = ccrs.PlateCarree()
+    # Get max range in degrees (approx 1° ≈ 111 km)
+    max_range_km = radar.range['data'][-1] / 1000.0
+    deg_padding = max_range_km / 111.0
 
-    # Create figure and axis
+    west = radar_lon - deg_padding
+    east = radar_lon + deg_padding
+    south = radar_lat - deg_padding
+    north = radar_lat + deg_padding
+
+    # Plot image
     fig = plt.figure(figsize=(8, 8), dpi=150)
-    ax = fig.add_subplot(1, 1, 1, projection=proj)
+    ax = fig.add_subplot(1, 1, 1, projection=ccrs.PlateCarree())
 
-    # Plot radar PPI
-    display.plot_ppi_map(
+    display.plot_ppi(
         field="reflectivity",
         ax=ax,
         colorbar_flag=False,
         title_flag=False,
         embellish=False,
-        projection=proj
     )
 
-    # Get extent and apply to axis
-    ax.set_extent(display._get_map_extent(), crs=proj)
-    extent = ax.get_extent(crs=proj)
-
-    # Save PNG with transparent background
-    fig.savefig(output_image_path, bbox_inches="tight", pad_inches=0, transparent=True)
-    plt.close(fig)
+    ax.set_extent([west, east, south, north], crs=ccrs.PlateCarree())
+    plt.axis("off")
+    plt.savefig(output_image_path, bbox_inches="tight", pad_inches=0, transparent=True)
+    plt.close()
     print(f"✅ Saved: {output_image_path}")
 
-    # Save bounds JSON for Mapbox image overlay
-    west, east, south, north = extent[0], extent[1], extent[2], extent[3]
+    # Save geographic bounds
     bounds = [
-        [west, north],
-        [east, north],
-        [east, south],
-        [west, south]
+        [west, north],  # Top-left
+        [east, north],  # Top-right
+        [east, south],  # Bottom-right
+        [west, south]   # Bottom-left
     ]
     with open(bounds_json_path, "w") as f:
         json.dump(bounds, f)
