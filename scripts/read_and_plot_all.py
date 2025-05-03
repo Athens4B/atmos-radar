@@ -4,44 +4,46 @@ import pyart
 import numpy as np
 import matplotlib.pyplot as plt
 
-def plot_radar_with_bounds(radar, field, site_id):
+def plot_radar_with_bounds(radar, field="reflectivity", site_id="KFFC"):
     print(f"🖼️ Plotting {field} for {site_id}...")
 
-    # Get radar gate lat/lon for sweep 0
-    lats, lons, _ = radar.get_gate_lat_lon_alt(0)  # Discard altitude
+    # Output paths
+    static_dir = "../static"
+    os.makedirs(static_dir, exist_ok=True)
+    image_path = os.path.join(static_dir, f"{site_id}_radar.png")
+    bounds_path = os.path.join(static_dir, f"{site_id}_radar_bounds.json")
 
-    # Get field data
+    # Extract radar data
     data = radar.fields[field]["data"]
-    data = np.ma.masked_invalid(data)
+    lats, lons = pyart.core.antenna_to_latlon(radar)
+    
+    # Autoscale
+    vmin = np.percentile(data.compressed(), 1)
+    vmax = np.percentile(data.compressed(), 99)
+    print(f"📊 Autoscaling vmin={vmin:.1f}, vmax={vmax:.1f}")
 
-    # Create plot
+    # Plot
     fig, ax = plt.subplots(figsize=(8, 8), dpi=150)
-    mesh = ax.pcolormesh(lons, lats, data, cmap="pyart_NWSRef", vmin=-32, vmax=64)
-
-    # Format plot
-    ax.set_xticks([])
-    ax.set_yticks([])
-    ax.set_frame_on(False)
+    mesh = ax.pcolormesh(lons, lats, data, cmap="NWSRef", vmin=vmin, vmax=vmax)
     ax.set_aspect("equal")
-    plt.axis("off")
 
-    # Save image
-    image_path = f"../static/{site_id}_radar_reflectivity.png"
+    # Clean layout
+    ax.axis("off")
+    plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
     plt.savefig(image_path, transparent=True, bbox_inches="tight", pad_inches=0)
     plt.close()
-    print(f"✅ Saved {image_path}")
+    print(f"✅ Saved radar image: {image_path}")
 
-    # Save bounding box
+    # Save bounds
     bounds = {
-        "west": float(np.min(lons)),
-        "east": float(np.max(lons)),
-        "south": float(np.min(lats)),
-        "north": float(np.max(lats))
+        "west": float(lons.min()),
+        "east": float(lons.max()),
+        "south": float(lats.min()),
+        "north": float(lats.max())
     }
-    bounds_path = f"../static/{site_id}_radar_bounds.json"
     with open(bounds_path, "w") as f:
         json.dump(bounds, f)
-    print(f"✅ Saved bounds to {bounds_path}")
+    print(f"✅ Saved bounds: {bounds_path}")
 
 def main():
     with open("latest_filename.txt", "r") as f:
@@ -52,7 +54,6 @@ def main():
     print("✅ Successfully read radar file.")
     print("📡 Available fields:", list(radar.fields.keys()))
 
-    os.makedirs("../static", exist_ok=True)
     plot_radar_with_bounds(radar, field="reflectivity", site_id="KFFC")
 
 if __name__ == "__main__":
