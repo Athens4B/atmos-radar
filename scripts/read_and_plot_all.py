@@ -5,48 +5,43 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 def plot_radar_with_bounds(radar, field, site_id):
-    from mpl_toolkits.basemap import Basemap
-
     print(f"🖼️ Plotting {field} for {site_id}...")
 
-    # Get radar location
+    # Get radar origin
     radar_lat = radar.latitude['data'][0]
     radar_lon = radar.longitude['data'][0]
 
-    # Get gate lat/lon
-    lats, lons = radar.get_gate_lat_lon(0)  # Sweep 0 only
+    # Get gate lat/lon for first sweep
+    lats, lons = radar.get_gate_lat_lon(0)
 
     # Get field data
     data = radar.fields[field]['data']
-    data = np.ma.masked_where(np.isnan(data), data)
+    data = np.ma.masked_invalid(data)
 
-    # Create figure
+    # Prepare figure
     fig, ax = plt.subplots(figsize=(8, 8), dpi=150)
-
-    # Plot using actual lat/lon bins
     mesh = ax.pcolormesh(lons, lats, data, cmap="pyart_NWSRef", vmin=-32, vmax=64)
 
-    # Clean up layout
+    # Hide axes and frame
     ax.set_xticks([])
     ax.set_yticks([])
     ax.set_frame_on(False)
-    ax.set_aspect('equal')  # Preserve aspect ratio
+    ax.set_aspect('equal')
     plt.axis('off')
 
-    # Save transparent PNG
+    # Save image
     image_path = f"../static/{site_id}_radar_reflectivity.png"
     plt.savefig(image_path, transparent=True, bbox_inches="tight", pad_inches=0)
     plt.close()
     print(f"✅ Saved {image_path}")
 
-    # Calculate bounds
+    # Save bounds
     bounds = {
-        "west": np.min(lons),
-        "east": np.max(lons),
-        "south": np.min(lats),
-        "north": np.max(lats)
+        "west": float(np.min(lons)),
+        "east": float(np.max(lons)),
+        "south": float(np.min(lats)),
+        "north": float(np.max(lats))
     }
-
     bounds_path = f"../static/{site_id}_radar_bounds.json"
     with open(bounds_path, "w") as f:
         json.dump(bounds, f)
