@@ -34,7 +34,6 @@ def plot_radar_with_bounds(radar, field, site_id):
         vmin=vmin,
         vmax=vmax,
         colorbar_flag=False,
-        embellish=False,
     )
 
     # Hide all axis ticks, gridlines, and frame
