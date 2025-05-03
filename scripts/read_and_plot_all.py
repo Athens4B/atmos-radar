@@ -1,65 +1,53 @@
 import os
 import json
-import numpy as np
 import pyart
+import numpy as np
 import matplotlib.pyplot as plt
-import cartopy.crs as ccrs
 
 def plot_radar_with_bounds(radar, field, site_id):
-    display = pyart.graph.RadarMapDisplay(radar)
-
-    # Output filenames
-    image_filename = f"{site_id}_radar.png"
-    bounds_filename = f"{site_id}_radar_bounds.json"
-    image_path = os.path.join("../static", image_filename)
-    bounds_path = os.path.join("../static", bounds_filename)
+    from mpl_toolkits.basemap import Basemap
 
     print(f"🖼️ Plotting {field} for {site_id}...")
 
-    # Get data range for autoscaling
-    data = radar.fields[field]["data"].filled(np.nan)
-    vmin = np.nanpercentile(data, 5)
-    vmax = np.nanpercentile(data, 95)
-    print(f"📊 Autoscaling vmin={vmin:.1f}, vmax={vmax:.1f}")
+    # Get radar location
+    radar_lat = radar.latitude['data'][0]
+    radar_lon = radar.longitude['data'][0]
 
-    # Set up map
-    fig = plt.figure(figsize=(6, 6), dpi=150)
-    proj = ccrs.PlateCarree()
-    ax = fig.add_subplot(111, projection=proj)
+    # Get gate lat/lon
+    lats, lons = radar.get_gate_lat_lon(0)  # Sweep 0 only
 
-    display.plot_ppi(
-        field=field,
-        ax=ax,
-        cmap="NWSRef",
-        vmin=vmin,
-        vmax=vmax,
-        colorbar_flag=False,
-    )
+    # Get field data
+    data = radar.fields[field]['data']
+    data = np.ma.masked_where(np.isnan(data), data)
 
-    # Hide all axis ticks, gridlines, and frame
+    # Create figure
+    fig, ax = plt.subplots(figsize=(8, 8), dpi=150)
+
+    # Plot using actual lat/lon bins
+    mesh = ax.pcolormesh(lons, lats, data, cmap="pyart_NWSRef", vmin=-32, vmax=64)
+
+    # Clean up layout
     ax.set_xticks([])
     ax.set_yticks([])
     ax.set_frame_on(False)
-    ax.grid(False)
+    ax.set_aspect('equal')  # Preserve aspect ratio
+    plt.axis('off')
 
-    # Save transparent image
+    # Save transparent PNG
+    image_path = f"../static/{site_id}_radar_reflectivity.png"
     plt.savefig(image_path, transparent=True, bbox_inches="tight", pad_inches=0)
     plt.close()
-    print(f"✅ Saved image to {image_path}")
+    print(f"✅ Saved {image_path}")
 
-    # Calculate approximate geographic bounds
-    radar_lat = radar.latitude["data"][0]
-    radar_lon = radar.longitude["data"][0]
-    max_range_km = radar.range["data"][-1] / 1000.0
-    deg_offset = max_range_km / 111.0
-
+    # Calculate bounds
     bounds = {
-        "west": radar_lon - deg_offset,
-        "east": radar_lon + deg_offset,
-        "south": radar_lat - deg_offset,
-        "north": radar_lat + deg_offset,
+        "west": np.min(lons),
+        "east": np.max(lons),
+        "south": np.min(lats),
+        "north": np.max(lats)
     }
 
+    bounds_path = f"../static/{site_id}_radar_bounds.json"
     with open(bounds_path, "w") as f:
         json.dump(bounds, f)
     print(f"✅ Saved bounds to {bounds_path}")
