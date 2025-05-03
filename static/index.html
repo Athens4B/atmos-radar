@@ -2,10 +2,10 @@
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>KFFC Radar Viewer</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet" />
+  <title>KFFC Radar Overlay</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
+  <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet" />
   <style>
     body, html { margin: 0; padding: 0; height: 100%; }
     #map { width: 100%; height: 100%; }
@@ -13,19 +13,19 @@
 </head>
 <body>
   <div id="map"></div>
-  <script>
-    mapboxgl.accessToken = 'pk.eyJ1Ijoic3RldmViNzgiLCJhIjoiY205OTBzc3dpMDF0ZjJqcHRwOXhqYTJkbSJ9.suk6_mA7Rb3TeKmDHJM1XA';
 
+  <script>
+    mapboxgl.accessToken = 'pk.eyJ1Ijoic3RldmViNzgiLCJhIjoiY205OTBzc3dpMDF0ZjJqcHRwOXhqYTJkbSJ9.suk6_mA7Rb3TeKmDHJM1XA'; // Replace this with your token
     const map = new mapboxgl.Map({
       container: 'map',
       style: 'mapbox://styles/steveb78/cm9nasayi00gs01rw4ah5blzc',
-      center: [-84.430, 33.363], // Approximate center near KFFC
+      center: [-84.27, 33.36], // Approximate KFFC
       zoom: 7
     });
 
     async function loadRadarOverlay() {
       try {
-        const boundsRes = await fetch("KFFC_radar_bounds.json");
+        const boundsRes = await fetch("/static/KFFC_radar_bounds.json");
         const bounds = await boundsRes.json();
 
         const imageBounds = [
@@ -33,10 +33,10 @@
           [bounds.east, bounds.north]
         ];
 
-        map.on("load", () => {
-          map.addSource("radar", {
-            type: "image",
-            url: "KFFC_radar.png",
+        map.on('load', () => {
+          map.addSource('radar-image', {
+            type: 'image',
+            url: '/static/KFFC_radar_reflectivity.png',
             coordinates: [
               [bounds.west, bounds.north],
               [bounds.east, bounds.north],
@@ -46,14 +46,18 @@
           });
 
           map.addLayer({
-            id: "radar-layer",
-            type: "raster",
-            source: "radar",
-            paint: { "raster-opacity": 0.85 }
+            id: 'radar-layer',
+            type: 'raster',
+            source: 'radar-image',
+            paint: {
+              'raster-opacity': 0.85
+            }
           });
+
+          map.fitBounds(imageBounds, { padding: 20 });
         });
       } catch (err) {
-        console.error("❌ Error loading radar image:", err);
+        console.error("❌ Failed to load radar image or bounds:", err);
       }
     }
 
