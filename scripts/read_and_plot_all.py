@@ -10,11 +10,23 @@ def plot_radar_with_bounds(radar, field, image_filename, bounds_filename, cmap="
 
     display = RadarMapDisplay(radar)
 
-    # Output paths
     image_path = os.path.join("../static", image_filename)
     bounds_path = os.path.join("../static", bounds_filename)
 
-    print(f"🖼️ Plotting {field} image with transparent background...")
+    lat = radar.latitude['data'][0]
+    lon = radar.longitude['data'][0]
+    max_range_km = radar.range['data'][-1] / 1000.0
+    delta_deg = max_range_km / 111.0
+
+    bounds = {
+        "west": lon - delta_deg,
+        "east": lon + delta_deg,
+        "south": lat - delta_deg,
+        "north": lat + delta_deg,
+    }
+
+    print(f"🖼️ Plotting {field} with extent: {bounds}")
+
     fig = plt.figure(figsize=(6, 6), dpi=150)
     proj = ccrs.PlateCarree()
     ax = fig.add_subplot(1, 1, 1, projection=proj)
@@ -30,28 +42,16 @@ def plot_radar_with_bounds(radar, field, image_filename, bounds_filename, cmap="
         axislabels_flag=False
     )
 
-    # Clean up plot
+    ax.set_extent([bounds["west"], bounds["east"], bounds["south"], bounds["north"]], crs=proj)
     ax.set_xticks([])
     ax.set_yticks([])
-    ax.grid(False)
     ax.set_frame_on(False)
+    ax.grid(False)
+    ax.set_aspect("equal")
 
     plt.savefig(image_path, transparent=True, bbox_inches="tight", pad_inches=0)
     plt.close()
     print(f"✅ Saved image to {image_path}")
-
-    # Save bounding box
-    lat = radar.latitude['data'][0]
-    lon = radar.longitude['data'][0]
-    max_range_km = radar.range['data'][-1] / 1000.0
-    delta_deg = max_range_km / 111.0
-
-    bounds = {
-        "west": lon - delta_deg,
-        "east": lon + delta_deg,
-        "south": lat - delta_deg,
-        "north": lat + delta_deg,
-    }
 
     with open(bounds_path, "w") as f:
         json.dump(bounds, f)
