@@ -25,7 +25,7 @@ def plot_and_export(site_id, radar_file):
     x = x / 1000.0 + radar.longitude['data'][0]
     y = y / 1000.0 + radar.latitude['data'][0]
 
-    reflectivity = radar.fields["reflectivity"]["data"][sweep]
+    reflectivity = radar.get_field(sweep, field)
     data = np.ma.masked_where(reflectivity < -10, reflectivity)
 
     fig, ax = plt.subplots(figsize=(6, 6), dpi=150)
