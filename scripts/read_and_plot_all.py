@@ -1,50 +1,60 @@
 import os
 import json
 import numpy as np
-import matplotlib.pyplot as plt
 import pyart
+import matplotlib.pyplot as plt
 
-def plot_radar_with_bounds(radar, field, site_id):
+def plot_radar_with_bounds(radar, field="reflectivity", site_id="KFFC"):
     print(f"🖼️ Plotting {field} for {site_id}...")
 
-    sweep = 0  # Lowest elevation scan (usually 0.5°)
-    data = radar.fields[field]["data"]
-    data = np.ma.masked_where(data < 5, data)  # Filter out clutter/noise (<5 dBZ)
+    sweep = 0  # First sweep (0.5° angle)
 
-    # Get lat/lon for sweep
-    lats, lons = radar.get_gate_lat_lon_alt(sweep)[0:2]
-    reflectivity = data[sweep]
+    # Get reflectivity data as 2D array
+    reflectivity = radar.fields[field]["data"]
+    sweep_start = radar.sweep_start_ray_index['data'][sweep]
+    sweep_end = radar.sweep_end_ray_index['data'][sweep]
 
-    fig, ax = plt.subplots(figsize=(10, 10), dpi=100)
+    # Extract sweep data
+    reflectivity = reflectivity[sweep_start:sweep_end+1]
+
+    # Convert to masked array and handle shape
+    reflectivity = np.ma.masked_invalid(reflectivity)
+
+    # Get lat/lon positions for sweep
+    lats, lons = radar.get_gate_lat_lon(sweep)
+
+    # Set file paths
+    image_path = f"../static/{site_id}_radar_reflectivity.png"
+    bounds_path = f"../static/{site_id}_radar_bounds.json"
+
+    # Plot
+    fig, ax = plt.subplots(figsize=(8, 8), dpi=150)
     mesh = ax.pcolormesh(lons, lats, reflectivity, cmap="NWSRef", vmin=-32, vmax=64)
-
-    ax.set_xlim(np.min(lons), np.max(lons))
-    ax.set_ylim(np.min(lats), np.max(lats))
+    ax.set_aspect('equal')
     ax.axis("off")
-
-    # Save image
-    output_image = f"../static/{site_id}_radar_reflectivity.png"
-    plt.savefig(output_image, transparent=True, bbox_inches="tight", pad_inches=0)
+    plt.savefig(image_path, bbox_inches="tight", pad_inches=0, transparent=True)
     plt.close()
-    print(f"✅ Saved image to {output_image}")
+    print(f"✅ Saved image to {image_path}")
 
-    # Save bounds as JSON
+    # Compute bounds
+    min_lat, max_lat = lats.min(), lats.max()
+    min_lon, max_lon = lons.min(), lons.max()
     bounds = {
-        "west": float(np.min(lons)),
-        "east": float(np.max(lons)),
-        "south": float(np.min(lats)),
-        "north": float(np.max(lats)),
+        "west": float(min_lon),
+        "east": float(max_lon),
+        "south": float(min_lat),
+        "north": float(max_lat)
     }
-    with open(f"../static/{site_id}_radar_bounds.json", "w") as f:
+    with open(bounds_path, "w") as f:
         json.dump(bounds, f)
-    print(f"✅ Saved bounds to ../static/{site_id}_radar_bounds.json")
+    print(f"✅ Saved bounds to {bounds_path}")
 
 def main():
     with open("latest_filename.txt", "r") as f:
-        radar_file = f.read().strip()
+        filename = f.read().strip()
 
-    print(f"📂 Reading radar file: {radar_file}")
-    radar = pyart.io.read(radar_file)
+    print(f"📂 Reading radar file: {filename}")
+    radar = pyart.io.read(filename)
     print("✅ Successfully read radar file.")
     print("📡 Available fields:", list(radar.fields.keys()))
 
