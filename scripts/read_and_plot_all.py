@@ -9,10 +9,11 @@ import cartopy.crs as ccrs
 def plot_radar_with_bounds(radar, field="reflectivity", site_id="KFFC"):
     print(f"🖼️ Plotting {field} for {site_id}...")
 
-    # Get gate lat/lon using proper Py-ART helper
+    # Use fallback for older Py-ART
     sweep = 0
-    lats, lons = pyart.core.antenna_to_latlon(radar, sweep)
-    data = radar.fields[field]['data']
+    lats, lons = radar.get_gate_lat_lon_alt(sweep)[:2]
+    data = radar.fields[field]['data'][radar.sweep_start_ray_index['data'][sweep] :
+                                        radar.sweep_end_ray_index['data'][sweep] + 1]
 
     # Mask invalid values
     data = np.ma.masked_where(data <= -9999, data)
@@ -20,7 +21,7 @@ def plot_radar_with_bounds(radar, field="reflectivity", site_id="KFFC"):
     # Create figure and axis
     fig, ax = plt.subplots(figsize=(6, 6), dpi=150, subplot_kw={'projection': ccrs.PlateCarree()})
 
-    # Plot radar data with georeferenced mesh
+    # Plot radar data
     mesh = ax.pcolormesh(
         lons,
         lats,
@@ -32,18 +33,17 @@ def plot_radar_with_bounds(radar, field="reflectivity", site_id="KFFC"):
         transform=ccrs.PlateCarree()
     )
 
-    # Set bounds tight around radar sweep
+    # Set tight radar extents
     lat_c = radar.latitude['data'][0]
     lon_c = radar.longitude['data'][0]
-    delta = 1.2  # ~135 km
+    delta = 1.2
     ax.set_extent([lon_c - delta, lon_c + delta, lat_c - delta, lat_c + delta])
 
-    # Remove ticks and borders
     ax.set_xticks([])
     ax.set_yticks([])
     ax.spines['geo'].set_visible(False)
 
-    # Save outputs
+    # Save transparent PNG and bounding box
     os.makedirs("../static", exist_ok=True)
     image_path = "../static/radar_overlay.png"
     bounds_path = "../static/radar_bounds.json"
