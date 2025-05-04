@@ -18,32 +18,28 @@
 
   const map = new mapboxgl.Map({
     container: 'map',
-    style: 'mapbox://styles/mapbox/light-v10', // avoids "landcover" error
-    center: [-84.55, 33.36], // Approx KFFC
+    style: 'mapbox://styles/mapbox/light-v10', // fixes "landcover" error
+    center: [-84.55, 33.36], // KFFC approx
     zoom: 7
   });
 
   map.on('load', async () => {
     try {
-      // Fetch bounds
-      const res = await fetch("/static/radar_bounds.json");
+      const res = await fetch("/static/KFFC_radar_bounds.json");
       const bounds = await res.json();
 
-      const imageURL = "/static/radar_overlay.png";
+      const imageURL = "/static/KFFC_radar_reflectivity.png";
       const imageBounds = [
-        [bounds.west, bounds.south],
-        [bounds.east, bounds.north]
+        [bounds.west, bounds.north], // top-left
+        [bounds.east, bounds.north], // top-right
+        [bounds.east, bounds.south], // bottom-right
+        [bounds.west, bounds.south]  // bottom-left
       ];
 
       map.addSource("radar", {
         type: "image",
         url: imageURL,
-        coordinates: [
-          [bounds.west, bounds.north], // top-left
-          [bounds.east, bounds.north], // top-right
-          [bounds.east, bounds.south], // bottom-right
-          [bounds.west, bounds.south]  // bottom-left
-        ]
+        coordinates: imageBounds
       });
 
       map.addLayer({
