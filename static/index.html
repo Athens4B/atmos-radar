@@ -2,34 +2,16 @@
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>AtmosphericX Radar</title>
+  <title>KFFC Radar - AtmosphericX</title>
   <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
   <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
   <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet" />
   <style>
-    body { margin: 0; padding: 0; font-family: sans-serif; }
-    #map { position: absolute; top: 40px; bottom: 0; width: 100%; }
-    #siteSelector {
-      position: absolute;
-      top: 5px;
-      left: 10px;
-      z-index: 1;
-      background: white;
-      padding: 5px;
-      border-radius: 4px;
-    }
+    body { margin: 0; padding: 0; }
+    #map { position: absolute; top: 0; bottom: 0; width: 100%; }
   </style>
 </head>
 <body>
-<div id="siteSelector">
-  <label for="site">Radar Site:</label>
-  <select id="site">
-    <option value="KFFC">KFFC</option>
-    <option value="KJGX">KJGX</option>
-    <option value="KJKL">KJKL</option>
-    <!-- Add more radar sites here -->
-  </select>
-</div>
 <div id="map"></div>
 <script>
   mapboxgl.accessToken = 'pk.eyJ1Ijoic3RldmViNzgiLCJhIjoiY205OTBzc3dpMDF0ZjJqcHRwOXhqYTJkbSJ9.suk6_mA7Rb3TeKmDHJM1XA';
@@ -37,45 +19,41 @@
   const map = new mapboxgl.Map({
     container: 'map',
     style: 'mapbox://styles/mapbox/light-v10',
-    center: [-84.55, 33.36],
+    center: [-84.55, 33.36], // Approximate center of KFFC
     zoom: 7
   });
 
-  let currentRadarSource = null;
-
-  async function loadRadarOverlay(site) {
+  map.on('load', async () => {
     try {
-      const boundsRes = await fetch(`/static/${site}_radar_bounds.json`);
+      const boundsRes = await fetch("/static/KFFC_radar_bounds.json");
       const bounds = await boundsRes.json();
 
-      const imageURL = `/static/${site}_radar_overlay.png`;
-      const coordinates = [
+      const imageBounds = [
         [bounds.west, bounds.north],
         [bounds.east, bounds.north],
         [bounds.east, bounds.south],
         [bounds.west, bounds.south]
       ];
 
-      if (map.getSource("radar")) {
-        map.getSource("radar").updateImage({ url: imageURL, coordinates });
-      } else {
-        map.addSource("radar", { type: "image", url: imageURL, coordinates });
-        map.addLayer({ id: "radar-layer", type: "raster", source: "radar", paint: { "raster-opacity": 0.85 } });
-      }
+      map.addSource("radar", {
+        type: "image",
+        url: "/static/KFFC_radar_reflectivity.png",
+        coordinates: imageBounds
+      });
 
-      console.log(`✅ Loaded radar for ${site}`);
+      map.addLayer({
+        id: "radar-layer",
+        type: "raster",
+        source: "radar",
+        paint: {
+          "raster-opacity": 0.9
+        }
+      });
+
+      console.log("✅ Radar overlay loaded for KFFC.");
     } catch (err) {
-      console.error(`❌ Failed to load radar for ${site}:`, err);
+      console.error("❌ Failed to load KFFC radar:", err);
     }
-  }
-
-  document.getElementById("site").addEventListener("change", (e) => {
-    const selectedSite = e.target.value;
-    loadRadarOverlay(selectedSite);
-  });
-
-  map.on("load", () => {
-    loadRadarOverlay("KFFC");
   });
 </script>
 </body>
