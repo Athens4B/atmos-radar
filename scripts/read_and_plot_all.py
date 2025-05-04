@@ -3,59 +3,66 @@ import json
 import numpy as np
 import pyart
 import matplotlib.pyplot as plt
-from pyart.core.transforms import antenna_to_cartesian, cartesian_to_geographic
+from pyart.core.transforms import antenna_to_cartesian
 
-def plot_radar_with_bounds(radar, field="reflectivity", site_id="KFFC"):
+def plot_radar_with_bounds(radar, field, site_id):
     print(f"🖼️ Plotting {field} for {site_id}...")
 
-    sweep = 0  # Lowest sweep
+    # Get the lowest sweep
+    sweep = 0
     start = radar.sweep_start_ray_index['data'][sweep]
     end = radar.sweep_end_ray_index['data'][sweep]
 
-    refl = radar.fields[field]['data'][start:end+1]
-    refl = np.ma.masked_invalid(refl)
+    # Extract data
+    azimuths = radar.azimuth['data'][start:end+1]
+    ranges = radar.range['data']
+    elevations = np.full_like(azimuths, radar.fixed_angle['data'][sweep])
 
-    azimuths = radar.azimuth['data'][start:end+1]  # 1D
-    ranges = radar.range['data']  # 1D
-    elevation = radar.fixed_angle['data'][sweep]  # single angle
-    elevations = np.full_like(azimuths, elevation)  # same length as azimuths
+    # Create 2D grids
+    az2d, r2d = np.meshgrid(azimuths, ranges, indexing='ij')
+    el2d = np.full_like(az2d, radar.fixed_angle['data'][sweep])
 
-    # Convert polar to cartesian coordinates (meters)
-    x, y, z = antenna_to_cartesian(ranges, azimuths, elevations)
+    # Convert to cartesian coordinates (in meters)
+    x, y, z = antenna_to_cartesian(r2d, az2d, el2d)
 
-    # Convert to lat/lon grid
-    x2d, y2d = np.meshgrid(x / 1000.0, y / 1000.0)  # convert to km for plotting
-    radar_lat = radar.latitude['data'][0]
-    radar_lon = radar.longitude['data'][0]
-    lons, lats = cartesian_to_geographic(x2d * 1000, y2d * 1000, radar_lon, radar_lat)
+    # Get reflectivity data and mask clutter
+    data = radar.fields[field]['data'][start:end+1]
+    data = np.ma.masked_where(data.filled(0) < 5, data)  # Mask reflectivity < 5 dBZ
 
-    # Plotting
+    # Convert to km for plotting
+    x_km, y_km = x / 1000.0, y / 1000.0
+
+    # Setup plot
     fig, ax = plt.subplots(figsize=(8, 8), dpi=150)
-    mesh = ax.pcolormesh(lons, lats, refl, cmap="NWSRef", vmin=-32, vmax=64)
-    ax.set_aspect('equal')
-    ax.axis("off")
+    mesh = ax.pcolormesh(x_km, y_km, data, cmap="NWSRef", vmin=-32, vmax=64)
+    ax.set_axis_off()
+    ax.set_aspect("equal")
 
-    image_path = f"../static/{site_id}_radar_reflectivity.png"
-    plt.savefig(image_path, bbox_inches="tight", pad_inches=0, transparent=True)
+    output_path = "../static/radar_overlay.png"
+    plt.savefig(output_path, transparent=True, bbox_inches="tight", pad_inches=0)
     plt.close()
-    print(f"✅ Saved image to {image_path}")
+    print(f"✅ Saved image to {output_path}")
 
-    # Save bounds
+    # Estimate bounds in degrees
+    lat0 = radar.latitude['data'][0]
+    lon0 = radar.longitude['data'][0]
+    max_range_km = ranges[-1] / 1000.0
+    deg_delta = max_range_km / 111.0  # Rough conversion
+
     bounds = {
-        "west": float(np.min(lons)),
-        "east": float(np.max(lons)),
-        "south": float(np.min(lats)),
-        "north": float(np.max(lats))
+        "north": lat0 + deg_delta,
+        "south": lat0 - deg_delta,
+        "east": lon0 + deg_delta,
+        "west": lon0 - deg_delta
     }
-    bounds_path = f"../static/{site_id}_radar_bounds.json"
-    with open(bounds_path, "w") as f:
+
+    with open("../static/radar_bounds.json", "w") as f:
         json.dump(bounds, f)
-    print(f"✅ Saved bounds to {bounds_path}")
+    print("✅ Saved bounds to ../static/radar_bounds.json")
 
 def main():
     with open("latest_filename.txt", "r") as f:
         filename = f.read().strip()
-
     print(f"📂 Reading radar file: {filename}")
     radar = pyart.io.read(filename)
     print("✅ Successfully read radar file.")
