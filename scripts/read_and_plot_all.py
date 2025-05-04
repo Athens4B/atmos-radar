@@ -9,24 +9,18 @@ import cartopy.crs as ccrs
 def plot_radar_with_bounds(radar, field="reflectivity", site_id="KFFC"):
     print(f"🖼️ Plotting {field} for {site_id}...")
 
-    # Get radar gate lats/lons and data
+    # Get gate lat/lon using proper Py-ART helper
     sweep = 0
-    lats, lons = radar.get_gate_lat_lon(sweep)
+    lats, lons = pyart.core.antenna_to_latlon(radar, sweep)
     data = radar.fields[field]['data']
 
     # Mask invalid values
     data = np.ma.masked_where(data <= -9999, data)
 
-    # Create figure with transparent background
+    # Create figure and axis
     fig, ax = plt.subplots(figsize=(6, 6), dpi=150, subplot_kw={'projection': ccrs.PlateCarree()})
-    ax.set_extent([
-        radar.longitude['data'][0] - 1.2,
-        radar.longitude['data'][0] + 1.2,
-        radar.latitude['data'][0] - 1.2,
-        radar.latitude['data'][0] + 1.2,
-    ], crs=ccrs.PlateCarree())
 
-    # Plot radar sweep with no labels or colorbar
+    # Plot radar data with georeferenced mesh
     mesh = ax.pcolormesh(
         lons,
         lats,
@@ -35,27 +29,33 @@ def plot_radar_with_bounds(radar, field="reflectivity", site_id="KFFC"):
         vmin=-32,
         vmax=64,
         shading='auto',
-        transform=ccrs.PlateCarree(),
+        transform=ccrs.PlateCarree()
     )
 
-    # Clean look
+    # Set bounds tight around radar sweep
+    lat_c = radar.latitude['data'][0]
+    lon_c = radar.longitude['data'][0]
+    delta = 1.2  # ~135 km
+    ax.set_extent([lon_c - delta, lon_c + delta, lat_c - delta, lat_c + delta])
+
+    # Remove ticks and borders
     ax.set_xticks([])
     ax.set_yticks([])
     ax.spines['geo'].set_visible(False)
 
-    # Save image and bounds
-    image_path = f"../static/radar_overlay.png"
-    bounds_path = f"../static/radar_bounds.json"
+    # Save outputs
+    os.makedirs("../static", exist_ok=True)
+    image_path = "../static/radar_overlay.png"
+    bounds_path = "../static/radar_bounds.json"
     plt.savefig(image_path, transparent=True, bbox_inches='tight', pad_inches=0)
     plt.close()
-
     print(f"✅ Saved image to {image_path}")
 
     bounds = {
-        "west": ax.get_xlim()[0],
-        "east": ax.get_xlim()[1],
-        "south": ax.get_ylim()[0],
-        "north": ax.get_ylim()[1],
+        "west": lon_c - delta,
+        "east": lon_c + delta,
+        "south": lat_c - delta,
+        "north": lat_c + delta
     }
     with open(bounds_path, "w") as f:
         json.dump(bounds, f)
@@ -70,8 +70,6 @@ def main():
     radar = pyart.io.read(radar_file)
     print("✅ Successfully read radar file.")
     print("📡 Available fields:", list(radar.fields.keys()))
-
-    os.makedirs("../static", exist_ok=True)
     plot_radar_with_bounds(radar, field="reflectivity", site_id="KFFC")
 
 
