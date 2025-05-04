@@ -1,58 +1,58 @@
 import os
-import json
-import numpy as np
 import pyart
+import numpy as np
+import json
 import matplotlib.pyplot as plt
+from pyart.core.transforms import antenna_to_cartesian
 
-def plot_radar_with_bounds(radar, field="reflectivity", site_id="KFFC"):
-    print(f"🖼️ Plotting {field} for {site_id}...")
 
-    sweep = 0
-    data = radar.fields[field]['data'][radar.get_slice(sweep)]
-    gate_lat, gate_lon, _ = radar.get_gate_lat_lon_alt(sweep)
-
-    lat_min, lat_max = gate_lat.min(), gate_lat.max()
-    lon_min, lon_max = gate_lon.min(), gate_lon.max()
-
-    # Plot
-    fig, ax = plt.subplots(figsize=(8, 8), dpi=150)
-    mesh = ax.pcolormesh(gate_lon, gate_lat, data, cmap="NWSRef", vmin=-32, vmax=64)
-    ax.set_xlim(lon_min, lon_max)
-    ax.set_ylim(lat_min, lat_max)
-    ax.axis("off")
-
-    # Save image
-    image_path = f"../static/{site_id}_radar_reflectivity.png"
-    plt.savefig(image_path, bbox_inches="tight", pad_inches=0, transparent=True)
-    plt.close()
-
-    print(f"✅ Saved image to {image_path}")
-
-    # Save bounds
-    bounds = {
-        "north": float(lat_max),
-        "south": float(lat_min),
-        "east": float(lon_max),
-        "west": float(lon_min),
-    }
-
-    bounds_path = f"../static/{site_id}_radar_bounds.json"
-    with open(bounds_path, "w") as f:
-        json.dump(bounds, f)
-
-    print(f"✅ Saved bounds to {bounds_path}")
-
-def main():
-    with open("latest_filename.txt", "r") as f:
-        filename = f.read().strip()
-
-    print(f"📂 Reading radar file: {filename}")
-    radar = pyart.io.read(filename)
-    print("✅ Successfully read radar file.")
+def plot_and_export(site_id, radar_file):
+    radar = pyart.io.read(radar_file)
+    print(f"📂 Processing {site_id} → {radar_file}")
     print("📡 Available fields:", list(radar.fields.keys()))
 
-    os.makedirs("../static", exist_ok=True)
-    plot_radar_with_bounds(radar, field="reflectivity", site_id="KFFC")
+    sweep = 0
+    azimuths = radar.azimuth['data']
+    ranges = radar.range['data']
+    elevations = radar.fixed_angle['data'][sweep] * np.ones_like(azimuths)
 
-if __name__ == "__main__":
-    main()
+    x, y, _ = antenna_to_cartesian(ranges, azimuths, elevations)
+    x = x / 1000.0 + radar.longitude['data'][0]
+    y = y / 1000.0 + radar.latitude['data'][0]
+
+    reflectivity = radar.fields["reflectivity"]["data"]
+    data = reflectivity[sweep]
+    data = np.ma.masked_where(data < -10, data)
+
+    fig, ax = plt.subplots(figsize=(6, 6), dpi=150)
+    mesh = ax.pcolormesh(x, y, data, cmap="NWSRef", vmin=-32, vmax=64)
+    ax.axis("off")
+    plt.axis("equal")
+
+    overlay_path = f"../static/{site_id}_radar_reflectivity.png"
+    bounds_path = f"../static/{site_id}_radar_bounds.json"
+    plt.savefig(overlay_path, bbox_inches='tight', pad_inches=0, transparent=True)
+    plt.close()
+    print(f"✅ Saved image to {overlay_path}")
+
+    bounds = {
+        "west": float(x.min()),
+        "east": float(x.max()),
+        "south": float(y.min()),
+        "north": float(y.max())
+    }
+    with open(bounds_path, "w") as f:
+        json.dump(bounds, f)
+    print(f"✅ Saved bounds to {bounds_path}")
+
+
+# Run for multiple sites
+site_files = {
+    "KFFC": "KFFC_20250502_0148",
+    "KJGX": "KJGX_20250502_0148",
+    "KJKL": "KJKL_20250502_0148"
+}
+
+os.makedirs("../static", exist_ok=True)
+for site_id, radar_file in site_files.items():
+    plot_and_export(site_id, radar_file)
