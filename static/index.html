@@ -1,59 +1,69 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="utf-8">
-  <title>Atmos Radar Overlay</title>
-  <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
+  <meta charset="utf-8" />
+  <title>Live Radar Display - KFFC</title>
+  <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
   <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
-  <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet">
+  <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet" />
   <style>
-    body, html { margin: 0; padding: 0; height: 100%; }
-    #map { position: absolute; top: 0; bottom: 0; width: 100%; }
+    body, html {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+    }
+    #map {
+      position: absolute;
+      top: 0; bottom: 0;
+      width: 100%;
+    }
   </style>
 </head>
 <body>
-<div id="map"></div>
+  <div id="map"></div>
+  <script>
+    mapboxgl.accessToken = 'pk.eyJ1Ijoic3RldmViNzgiLCJhIjoiY205OTBzc3dpMDF0ZjJqcHRwOXhqYTJkbSJ9.suk6_mA7Rb3TeKmDHJM1XA';
 
-<script>
-  mapboxgl.accessToken = 'pk.eyJ1Ijoic3RldmViNzgiLCJhIjoiY205OTBzc3dpMDF0ZjJqcHRwOXhqYTJkbSJ9.suk6_mA7Rb3TeKmDHJM1XA'; // replace this with your token
+    const map = new mapboxgl.Map({
+      container: 'map',
+      style: 'mapbox://styles/mapbox/satellite-streets-v12',
+      center: [-84.55, 33.36],  // Approximate center near KFFC
+      zoom: 7
+    });
 
-  const map = new mapboxgl.Map({
-    container: 'map',
-    style: 'mapbox://styles/mapbox/light-v10',
-    center: [-84.449, 33.362],  // roughly centered on KFFC
-    zoom: 7
-  });
+    map.on('load', async () => {
+      try {
+        // Load bounding box
+        const boundsRes = await fetch('/static/KFFC_radar_bounds.json');
+        const bounds = await boundsRes.json();
 
-  map.on('load', async () => {
-    try {
-      const res = await fetch('/static/radar_bounds.json');
-      const bounds = await res.json();
+        const radarImageUrl = '/static/KFFC_radar_reflectivity.png';
 
-      map.addSource('radar', {
-        type: 'image',
-        url: '/static/radar_overlay.png',
-        coordinates: [
-          [bounds.west, bounds.north],
-          [bounds.east, bounds.north],
-          [bounds.east, bounds.south],
-          [bounds.west, bounds.south]
-        ]
-      });
+        map.addSource('radar-overlay', {
+          type: 'image',
+          url: radarImageUrl,
+          coordinates: [
+            [bounds.west, bounds.north],
+            [bounds.east, bounds.north],
+            [bounds.east, bounds.south],
+            [bounds.west, bounds.south]
+          ]
+        });
 
-      map.addLayer({
-        id: 'radar-layer',
-        type: 'raster',
-        source: 'radar',
-        paint: {
-          'raster-opacity': 0.9
-        }
-      });
+        map.addLayer({
+          id: 'radar-layer',
+          type: 'raster',
+          source: 'radar-overlay',
+          paint: {
+            'raster-opacity': 0.85
+          }
+        });
 
-      console.log("✅ Radar overlay loaded");
-    } catch (err) {
-      console.error("❌ Failed to load radar overlay", err);
-    }
-  });
-</script>
+        console.log('✅ Radar image loaded');
+      } catch (err) {
+        console.error('❌ Failed to load radar overlay:', err);
+      }
+    });
+  </script>
 </body>
 </html>
