@@ -3,21 +3,19 @@ import json
 import pyart
 import numpy as np
 import matplotlib.pyplot as plt
-from pyart.core.transforms import antenna_to_lat_lon
 import cartopy.crs as ccrs
 
 def plot_radar_with_bounds(radar, field, site_id):
-    sweep = 0  # lowest elevation angle
+    sweep = 0  # lowest tilt
     data = radar.fields[field]["data"][radar.get_slice(sweep)]
-    azimuths = radar.azimuth["data"][radar.get_slice(sweep)]
-    ranges = radar.range["data"]
+    
+    # This works on stable Py-ART builds
+    lats, lons, _ = radar.get_gate_lat_lon_alt(sweep)
 
-    # Get lat/lon coordinates of radar gates
-    lats, lons = antenna_to_lat_lon(radar, sweep)
-
-    # Filter bounds using valid data
-    valid_lats = lats[np.isfinite(data)]
-    valid_lons = lons[np.isfinite(data)]
+    # Use valid data to clip bounds
+    valid_mask = np.isfinite(data)
+    valid_lats = lats[valid_mask]
+    valid_lons = lons[valid_mask]
 
     bounds = {
         "west": float(np.min(valid_lons)),
