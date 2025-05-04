@@ -1,62 +1,70 @@
 import os
+import json
 import pyart
 import numpy as np
-import json
 import matplotlib.pyplot as plt
-from pyart.core.transforms import antenna_to_cartesian
 
-
-def plot_and_export(site_id, radar_file):
-    radar = pyart.io.read(radar_file)
+def plot_and_export(site_id, radar_file, field="reflectivity"):
     print(f"📂 Processing {site_id} → {radar_file}")
-    print("📡 Available fields:", list(radar.fields.keys()))
+    radar = pyart.io.read(radar_file)
+    print(f"📡 Available fields: {list(radar.fields.keys())}")
 
     sweep = 0
-    azimuths = radar.get_azimuth(sweep)
     ranges = radar.range['data']
-    elevations = radar.get_elevation(sweep)
+    azimuths = radar.azimuth['data']
+    elevations = radar.elevation['data']
 
-    # Meshgrid for shape matching
-    r_grid, az_grid = np.meshgrid(ranges, azimuths)
-    el_grid = np.tile(elevations[:, np.newaxis], (1, len(ranges)))
+    # Transform polar coordinates to Cartesian (centered on radar)
+    x, y, _ = pyart.core.antenna_to_cartesian(ranges, azimuths, elevations)
 
-    # Convert to Cartesian
-    x, y, _ = antenna_to_cartesian(r_grid, az_grid, el_grid)
-    x = x / 1000.0 + radar.longitude['data'][0]
-    y = y / 1000.0 + radar.latitude['data'][0]
+    # Pull reflectivity or other selected field
+    data_raw = radar.get_field(sweep, field)
+    # Filter low values (clutter/noise)
+    data = np.ma.masked_where(data_raw < -10, data_raw)
 
-    reflectivity = radar.get_field(sweep, field)
-    data = np.ma.masked_where(reflectivity < -10, reflectivity)
-
+    # Plot settings
     fig, ax = plt.subplots(figsize=(6, 6), dpi=150)
-    ax.pcolormesh(x, y, data, cmap="NWSRef", vmin=-32, vmax=64)
+    mesh = ax.pcolormesh(x, y, data, cmap="NWSRef", vmin=-32, vmax=64)
+    ax.set_aspect('equal')
     ax.axis("off")
-    plt.axis("equal")
 
-    overlay_path = f"../static/{site_id}_radar_reflectivity.png"
-    bounds_path = f"../static/{site_id}_radar_bounds.json"
-    plt.savefig(overlay_path, bbox_inches='tight', pad_inches=0, transparent=True)
+    # Save image to static folder
+    image_path = f"../static/{site_id}_radar_reflectivity.png"
+    plt.savefig(image_path, transparent=True, bbox_inches="tight", pad_inches=0)
     plt.close()
-    print(f"✅ Saved image to {overlay_path}")
+
+    # Save bounding box for Mapbox overlay
+    lat, lon = radar.latitude['data'][0], radar.longitude['data'][0]
+    max_range_km = radar.range['data'][-1] / 1000.0
+    delta_deg = max_range_km / 111.0  # ~111 km per degree
 
     bounds = {
-        "west": float(x.min()),
-        "east": float(x.max()),
-        "south": float(y.min()),
-        "north": float(y.max())
+        "west": lon - delta_deg,
+        "east": lon + delta_deg,
+        "south": lat - delta_deg,
+        "north": lat + delta_deg,
     }
+
+    bounds_path = f"../static/{site_id}_radar_bounds.json"
     with open(bounds_path, "w") as f:
         json.dump(bounds, f)
+
+    print(f"✅ Saved image to {image_path}")
     print(f"✅ Saved bounds to {bounds_path}")
 
 
-# Run for multiple sites
-site_files = {
-    "KFFC": "KFFC_20250502_0148",
-    "KJGX": "KJGX_20250502_0148",
-    "KJKL": "KJKL_20250502_0148"
-}
+def main():
+    # Add radar sites and filenames here
+    radar_sites = {
+        "KFFC": "KFFC_20250502_0148",
+        # Add more sites like:
+        # "KJKL": "KJKL_20250502_0150",
+        # "KJGX": "KJGX_20250502_0152"
+    }
 
-os.makedirs("../static", exist_ok=True)
-for site_id, radar_file in site_files.items():
-    plot_and_export(site_id, radar_file)
+    for site_id, radar_file in radar_sites.items():
+        plot_and_export(site_id, radar_file, field="reflectivity")
+
+
+if __name__ == "__main__":
+    main()
