@@ -12,20 +12,24 @@ def plot_and_export(site_id, radar_file):
     print("📡 Available fields:", list(radar.fields.keys()))
 
     sweep = 0
-    azimuths = radar.azimuth['data']
+    azimuths = radar.get_azimuth(sweep)
     ranges = radar.range['data']
-    elevations = radar.fixed_angle['data'][sweep] * np.ones_like(azimuths)
+    elevations = radar.get_elevation(sweep)
 
-    x, y, _ = antenna_to_cartesian(ranges, azimuths, elevations)
+    # Meshgrid for shape matching
+    r_grid, az_grid = np.meshgrid(ranges, azimuths)
+    el_grid = np.tile(elevations[:, np.newaxis], (1, len(ranges)))
+
+    # Convert to Cartesian
+    x, y, _ = antenna_to_cartesian(r_grid, az_grid, el_grid)
     x = x / 1000.0 + radar.longitude['data'][0]
     y = y / 1000.0 + radar.latitude['data'][0]
 
-    reflectivity = radar.fields["reflectivity"]["data"]
-    data = reflectivity[sweep]
-    data = np.ma.masked_where(data < -10, data)
+    reflectivity = radar.fields["reflectivity"]["data"][sweep]
+    data = np.ma.masked_where(reflectivity < -10, reflectivity)
 
     fig, ax = plt.subplots(figsize=(6, 6), dpi=150)
-    mesh = ax.pcolormesh(x, y, data, cmap="NWSRef", vmin=-32, vmax=64)
+    ax.pcolormesh(x, y, data, cmap="NWSRef", vmin=-32, vmax=64)
     ax.axis("off")
     plt.axis("equal")
 
