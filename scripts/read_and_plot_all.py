@@ -8,28 +8,28 @@ from pyart.core.transforms import antenna_to_cartesian, cartesian_to_geographic
 def plot_radar_with_bounds(radar, field="reflectivity", site_id="KFFC"):
     print(f"🖼️ Plotting {field} for {site_id}...")
 
-    sweep = 0  # 0.5 degree
+    sweep = 0  # Lowest sweep
     start = radar.sweep_start_ray_index['data'][sweep]
     end = radar.sweep_end_ray_index['data'][sweep]
 
-    # Extract 2D reflectivity data
     refl = radar.fields[field]['data'][start:end+1]
     refl = np.ma.masked_invalid(refl)
 
-    # Get gate coordinates
-    rng = radar.range['data']  # 1D
-    az = radar.azimuth['data'][start:end+1]  # 1D
+    azimuths = radar.azimuth['data'][start:end+1]  # 1D
+    ranges = radar.range['data']  # 1D
+    elevation = radar.fixed_angle['data'][sweep]  # single angle
+    elevations = np.full_like(azimuths, elevation)  # same length as azimuths
 
-    # Convert to 2D Cartesian coordinates
-    x, y, z = antenna_to_cartesian(rng, az)
-    x2d, y2d = np.meshgrid(x / 1000.0, y / 1000.0)  # km
+    # Convert polar to cartesian coordinates (meters)
+    x, y, z = antenna_to_cartesian(ranges, azimuths, elevations)
 
-    # Convert to lat/lon
+    # Convert to lat/lon grid
+    x2d, y2d = np.meshgrid(x / 1000.0, y / 1000.0)  # convert to km for plotting
     radar_lat = radar.latitude['data'][0]
     radar_lon = radar.longitude['data'][0]
     lons, lats = cartesian_to_geographic(x2d * 1000, y2d * 1000, radar_lon, radar_lat)
 
-    # Plot
+    # Plotting
     fig, ax = plt.subplots(figsize=(8, 8), dpi=150)
     mesh = ax.pcolormesh(lons, lats, refl, cmap="NWSRef", vmin=-32, vmax=64)
     ax.set_aspect('equal')
@@ -40,7 +40,7 @@ def plot_radar_with_bounds(radar, field="reflectivity", site_id="KFFC"):
     plt.close()
     print(f"✅ Saved image to {image_path}")
 
-    # Get bounds
+    # Save bounds
     bounds = {
         "west": float(np.min(lons)),
         "east": float(np.max(lons)),
