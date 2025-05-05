@@ -23,7 +23,7 @@ def plot_radar_with_bounds(radar, field, site_id):
     # Gate filtering to reduce clutter
     gatefilter = pyart.filters.GateFilter(radar)
     gatefilter.exclude_below(field, 0)
-    filtered_data = np.ma.masked_where(gatefilter.gate_excluded, data[sweep])
+    filtered_data = np.ma.masked_where(gatefilter.gate_excluded, data)
 
     # Get lat/lon coordinates for sweep
     lats, lons = radar.get_gate_lat_lon(sweep)
