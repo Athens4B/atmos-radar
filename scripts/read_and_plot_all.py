@@ -54,7 +54,7 @@ def plot_radar_with_bounds(radar, field="reflectivity", site_id="KFFC", sweep=0)
 
 def main():
     site_id = "KFFC"
-    radar_files = sorted(DATA_DIR.glob(f"{site_id}_*.gz"))
+    radar_files = sorted(DATA_DIR.glob(f"{site_id}_*"))
     if not radar_files:
         print("❌ No radar files found.")
         return
