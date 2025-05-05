@@ -26,7 +26,7 @@ def plot_radar_with_bounds(radar, field, site_id):
     filtered_data = np.ma.masked_where(gatefilter.gate_excluded, data)
 
     # Get lat/lon coordinates for sweep
-    lats, lons = radar.get_gate_lat_lon(sweep)
+    lats, lons = radar.get_gate_lat_lon_alt(sweep)[:2]
 
     # Plot
     fig, ax = plt.subplots(figsize=(10, 10), dpi=100)
