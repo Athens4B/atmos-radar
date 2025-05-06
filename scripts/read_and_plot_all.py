@@ -1,75 +1,73 @@
 import os
 import glob
-import numpy as np
 import pyart
+import numpy as np
 import matplotlib.pyplot as plt
+from pyart.filters import GateFilter
+from pyart.core.transforms import antenna_to_lat_lon
 import json
 
-def plot_radar_with_bounds(radar, field="reflectivity", site_id="KFFC", sweep=0):
-    print(f"📡 Available fields: {list(radar.fields.keys())}")
+def plot_radar_with_bounds(radar, field="reflectivity", site_id="RADAR"):
+    sweep = 0
     print(f"🌀 Using sweep: {sweep}")
 
-    # Generate gatefilter to reduce clutter
-    gatefilter = pyart.filters.GateFilter(radar)
+    # Get gate lat/lon
+    lats, lons = antenna_to_lat_lon(radar, sweep)
+
+    # Get radar data
+    data = radar.fields[field]['data']
+    data = data[sweep] if data.ndim == 3 else data
+
+    # Apply gate filter to remove clutter
+    gatefilter = GateFilter(radar)
     gatefilter.exclude_transition()
     gatefilter.exclude_masked(field)
     gatefilter.exclude_invalid(field)
-    gatefilter.exclude_below(field, -10)
+    filtered_data = np.ma.masked_where(gatefilter.gate_excluded, data)
 
-    # Get sweep slice
-    start = radar.sweep_start_ray_index['data'][sweep]
-    end = radar.sweep_end_ray_index['data'][sweep]
-    data = radar.fields[field]['data'][start:end]
-    data_filtered = np.ma.masked_where(gatefilter.gate_excluded[start:end], data)
-
-    # Get lat/lon for the sweep
-    lats, lons = radar.get_gate_lat_lon(sweep)
-
-    # Plot setup
-    fig, ax = plt.subplots(figsize=(10, 10), dpi=150)
+    # Plot
+    fig, ax = plt.subplots(figsize=(10, 8), dpi=150)
+    pm = ax.pcolormesh(lons, lats, filtered_data, cmap="NWSRef", vmin=-32, vmax=64)
     ax.axis("off")
+    ax.set_aspect('equal', adjustable='box')
+    plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
 
-    # Plot reflectivity
-    pm = ax.pcolormesh(
-        lons, lats, data_filtered,
-        cmap="NWSRef", vmin=-32, vmax=64,
-        shading='auto'
-    )
+    # Save image
+    out_img_path = f"../static/{site_id}_radar_reflectivity.png"
+    plt.savefig(out_img_path, bbox_inches="tight", pad_inches=0, transparent=True)
+    print(f"✅ Saved image to {out_img_path}")
 
-    # Save transparent image without axes
-    out_img = f"../static/{site_id}_radar_reflectivity.png"
-    fig.savefig(out_img, dpi=150, bbox_inches='tight', pad_inches=0, transparent=True)
-    print(f"✅ Saved image to {out_img}")
-    plt.close(fig)
-
-    # Save bounds for mapping overlay
+    # Save bounds for overlay
     bounds = {
-        "west": np.min(lons),
-        "east": np.max(lons),
-        "south": np.min(lats),
-        "north": np.max(lats)
+        "west": float(np.min(lons)),
+        "east": float(np.max(lons)),
+        "south": float(np.min(lats)),
+        "north": float(np.max(lats)),
     }
-    out_bounds = f"../static/{site_id}_radar_bounds.json"
-    with open(out_bounds, "w") as f:
+
+    out_bounds_path = f"../static/{site_id}_radar_bounds.json"
+    with open(out_bounds_path, "w") as f:
         json.dump(bounds, f)
-    print(f"✅ Saved bounds to {out_bounds}")
+    print(f"✅ Saved bounds to {out_bounds_path}")
+
+    plt.close()
+
+def find_latest_radar_file(station_id):
+    search_path = f"../data/{station_id}_*"
+    files = sorted(glob.glob(search_path))
+    return files[-1] if files else None
 
 def main():
     site_id = "KFFC"
-    data_dir = "/root/atmos-radar/data"
-    radar_files = sorted(
-        glob.glob(os.path.join(data_dir, f"{site_id}_*")),
-        key=os.path.getmtime,
-        reverse=True
-    )
+    radar_file_path = find_latest_radar_file(site_id)
 
-    if not radar_files:
+    if radar_file_path is None:
         print("❌ No radar files found.")
         return
 
-    radar_file = radar_files[0]
-    print(f"📂 Reading radar file: {radar_file}")
-    radar = pyart.io.read(radar_file)
+    print(f"📂 Reading radar file: {radar_file_path}")
+    radar = pyart.io.read(radar_file_path)
+    print(f"📡 Available fields: {list(radar.fields.keys())}")
 
     plot_radar_with_bounds(radar, field="reflectivity", site_id=site_id)
 
