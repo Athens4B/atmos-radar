@@ -8,18 +8,16 @@ def plot_radar_with_bounds(radar, field="reflectivity", site_id="KFFC"):
     sweep = 0
     print(f"🌀 Using sweep: {sweep}")
 
-    gatefilter = pyart.filters.GateFilter(radar)
-    gatefilter.exclude_transition()
-    gatefilter.exclude_masked(field)
-    gatefilter.exclude_below(field, -999)
-
+    # Get data from the sweep
     data = radar.fields[field]["data"]
-    filtered_data = data[sweep]  # no gatefilter masking to avoid shape issues
+    data_sweep = data[radar.get_slice(sweep)]
 
-    x, y = radar.get_gate_x_y(sweep)
+    # Use x and y from sweep-aligned cartesian gates
+    x, y, _ = radar.get_gate_x_y_z(sweep)
 
+    # Prepare the plot
     fig, ax = plt.subplots(figsize=(10, 10))
-    pm = ax.pcolormesh(x, y, filtered_data, cmap="NWSRef", vmin=-32, vmax=64)
+    mesh = ax.pcolormesh(x, y, data_sweep, cmap="NWSRef", vmin=-32, vmax=64)
     ax.axis("off")
     ax.set_aspect("equal")
 
@@ -27,6 +25,7 @@ def plot_radar_with_bounds(radar, field="reflectivity", site_id="KFFC"):
     fig.savefig(output_image, transparent=True, bbox_inches="tight", pad_inches=0)
     plt.close(fig)
 
+    # Get bounding box for mapping
     lons, lats = radar.get_gate_longitude_latitude(sweep)
     bounds = {
         "west": float(np.nanmin(lons)),
