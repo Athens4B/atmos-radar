@@ -1,61 +1,40 @@
-
-import pyart
+from pathlib import Path
 import numpy as np
 import matplotlib.pyplot as plt
+import pyart
 import json
-from pathlib import Path
-import os
 
 def plot_radar_with_bounds(radar, field="reflectivity", site_id="KFFC"):
     sweep = 0
     print(f"🌀 Using sweep: {sweep}")
 
-    data = radar.fields[field]["data"]
-    azimuths = radar.get_azimuth(sweep)
-    ranges = radar.range["data"]
-    elevation = radar.get_elevation(sweep)[0]
-
-    # Create 2D azimuth and range arrays
-    az2d, r2d = np.meshgrid(azimuths, ranges, indexing='ij')
-    el2d = np.ones_like(az2d) * elevation
-
-    # Convert to cartesian coordinates
-    x, y, z = pyart.core.antenna_to_cartesian(r2d, az2d, el2d)
-
-    # Apply gate filter to remove clutter
-    gatefilter = pyart.correct.GateFilter(radar)
+    gatefilter = pyart.filters.GateFilter(radar)
     gatefilter.exclude_transition()
     gatefilter.exclude_masked(field)
-    gatefilter.exclude_invalid(field)
-    gatefilter.exclude_below(field, -32)
+    gatefilter.exclude_below(field, -999)
 
-    mask = gatefilter.gate_excluded[sweep]
-    filtered_data = np.ma.masked_where(mask, data[sweep])
+    data = radar.fields[field]["data"]
+    filtered_data = data[sweep]  # no gatefilter masking to avoid shape issues
 
-    # Plot
+    x, y = radar.get_gate_x_y(sweep)
+
     fig, ax = plt.subplots(figsize=(10, 10))
     pm = ax.pcolormesh(x, y, filtered_data, cmap="NWSRef", vmin=-32, vmax=64)
-    ax.set_aspect('equal')
-    plt.axis("off")
+    ax.axis("off")
+    ax.set_aspect("equal")
 
-    # Save overlay image
     output_image = f"../static/{site_id}_radar_reflectivity.png"
-    plt.savefig(output_image, bbox_inches='tight', pad_inches=0, transparent=True)
-    plt.close()
+    fig.savefig(output_image, transparent=True, bbox_inches="tight", pad_inches=0)
+    plt.close(fig)
 
-    # Determine geographic bounds (approximate)
-    lats, lons = radar.get_gate_lat_lon(sweep)
-    min_lat, max_lat = lats.min(), lats.max()
-    min_lon, max_lon = lons.min(), lons.max()
-
+    lons, lats = radar.get_gate_longitude_latitude(sweep)
     bounds = {
-        "north": float(max_lat),
-        "south": float(min_lat),
-        "east": float(max_lon),
-        "west": float(min_lon),
+        "west": float(np.nanmin(lons)),
+        "east": float(np.nanmax(lons)),
+        "south": float(np.nanmin(lats)),
+        "north": float(np.nanmax(lats))
     }
 
-    # Save bounds
     with open(f"../static/{site_id}_radar_bounds.json", "w") as f:
         json.dump(bounds, f)
 
@@ -71,6 +50,7 @@ def main():
 
     latest_file = radar_files[-1]
     print(f"📂 Reading radar file: {latest_file}")
+
     radar = pyart.io.read(str(latest_file))
     print(f"📡 Available fields: {list(radar.fields.keys())}")
 
