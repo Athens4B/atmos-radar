@@ -24,7 +24,7 @@ def plot_radar_with_bounds(radar, field, site_id):
     data = radar.fields[field]["data"]
     gatefilter = pyart.filters.GateFilter(radar)
     gatefilter.exclude_masked(field)
-    data_filtered = np.ma.masked_where(gatefilter.gate_excluded, data[sweep])
+    data_filtered = np.ma.masked_where(gatefilter.gate_excluded, data) 
 
     fig = plt.figure(figsize=(10, 8))
     ax = plt.axes()
