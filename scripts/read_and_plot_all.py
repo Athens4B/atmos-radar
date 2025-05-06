@@ -1,79 +1,75 @@
+import os
 import pyart
 import numpy as np
 import matplotlib.pyplot as plt
 import json
-import os
 
-def plot_radar_with_bounds(radar, field, site_id):
-    if radar.nsweeps < 1:
-        print(f"❌ No sweeps found in radar file for {site_id}.")
-        return
-
-    # Safely assign the lowest sweep
-    sweep = 0 if 0 in radar.sweep_start_ray_index else radar.get_start_end(0)[0]
-
+def plot_radar_with_bounds(radar, field="reflectivity", site_id="KFFC"):
+    sweep = 0
     print(f"🌀 Using sweep: {sweep}")
 
-    # Extract data for this sweep
-    data = radar.fields[field]["data"]
-    ranges = radar.range['data']
-    azimuths = radar.get_azimuth(sweep)
-    elevations = radar.get_elevation(sweep)
-
-    # Gate filtering to reduce clutter
+    # Create a gatefilter to remove clutter
     gatefilter = pyart.filters.GateFilter(radar)
-    gatefilter.exclude_below(field, 0)
-    filtered_data = np.ma.masked_where(gatefilter.gate_excluded, data)
+    gatefilter.exclude_transition()
+    gatefilter.exclude_masked(field)
+    gatefilter.exclude_below(field, -32)
 
-    # Get lat/lon coordinates for sweep
-    lats, lons = radar.get_gate_lat_lon_alt(sweep)[:2]
+    # Get sweep start and end ray indices
+    start_idx = radar.sweep_start_ray_index['data'][sweep]
+    end_idx = radar.sweep_end_ray_index['data'][sweep]
 
-    # Plot
-    fig, ax = plt.subplots(figsize=(10, 10), dpi=100)
-    pm = ax.pcolormesh(lons, lats, filtered_data, cmap="pyart_NWSRef", vmin=-32, vmax=64)
-    ax.set_title(f"{site_id} Reflectivity", fontsize=14)
+    # Get the reflectivity data and apply the gate filter
+    data = radar.fields[field]['data']
+    reflectivity = data[start_idx:end_idx]
+    filtered_data = np.ma.masked_where(gatefilter.gate_excluded[start_idx:end_idx], reflectivity)
+
+    # Get lat/lon values
+    lats, lons, _ = radar.get_gate_lat_lon_alt(sweep)
+    lats = lats[start_idx:end_idx]
+    lons = lons[start_idx:end_idx]
+
+    # Plotting
+    fig, ax = plt.subplots(figsize=(10, 8), dpi=100)
+    pm = ax.pcolormesh(lons, lats, filtered_data, cmap="pyart_NWSRef", vmin=-32, vmax=64, shading="auto")
+    ax.set_aspect('equal')
     ax.set_xlim(np.min(lons), np.max(lons))
     ax.set_ylim(np.min(lats), np.max(lats))
-    ax.set_aspect('equal')
-    ax.axis("off")
+    ax.axis('off')
+    plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
 
-    # Save image
-    image_path = f"../static/{site_id}_radar_reflectivity.png"
-    plt.savefig(image_path, bbox_inches="tight", pad_inches=0, transparent=True)
-    plt.close()
-    print(f"✅ Saved image to {image_path}")
+    # Save PNG with transparent background
+    output_image_path = f"../static/{site_id}_radar_reflectivity.png"
+    fig.patch.set_alpha(0.0)
+    plt.savefig(output_image_path, dpi=100, transparent=True)
+    plt.close(fig)
+    print(f"✅ Saved image to {output_image_path}")
 
-    # Save bounds for Mapbox overlay
+    # Save bounds as JSON
     bounds = {
         "north": float(np.max(lats)),
         "south": float(np.min(lats)),
         "east": float(np.max(lons)),
-        "west": float(np.min(lons))
+        "west": float(np.min(lons)),
     }
-
-    bounds_path = f"../static/{site_id}_radar_bounds.json"
-    with open(bounds_path, "w") as f:
+    output_bounds_path = f"../static/{site_id}_radar_bounds.json"
+    with open(output_bounds_path, "w") as f:
         json.dump(bounds, f)
-    print(f"✅ Saved bounds to {bounds_path}")
+    print(f"✅ Saved bounds to {output_bounds_path}")
 
 def main():
-    site_id = "KFFC"
     data_dir = "/root/atmos-radar/data"
-    radar_files = sorted([
-        f for f in os.listdir(data_dir)
-        if f.startswith(site_id) and not f.endswith(".gz")
-    ], reverse=True)
-
-    if not radar_files:
+    files = sorted([f for f in os.listdir(data_dir) if f.startswith("KFFC") and f.endswith(".gz")])
+    if not files:
         print("❌ No radar files found.")
         return
 
-    radar_file_path = os.path.join(data_dir, radar_files[0])
+    latest_file = files[-1]
+    radar_file_path = os.path.join(data_dir, latest_file)
     print(f"📂 Reading radar file: {radar_file_path}")
-
     radar = pyart.io.read(radar_file_path)
     print(f"📡 Available fields: {list(radar.fields.keys())}")
-    plot_radar_with_bounds(radar, field="reflectivity", site_id=site_id)
+
+    plot_radar_with_bounds(radar, field="reflectivity", site_id="KFFC")
 
 if __name__ == "__main__":
     main()
