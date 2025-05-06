@@ -2,55 +2,198 @@
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>AtmosphericX Radar – KFFC</title>
+  <title>AtmosphericX Radar Viewer</title>
   <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
   <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
   <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet" />
   <style>
-    body { margin: 0; padding: 0; }
-    #map { position: absolute; top: 0; bottom: 0; width: 100%; }
+    body { 
+      margin: 0; 
+      padding: 0; 
+      font-family: Arial, sans-serif;
+    }
+    #map { 
+      position: absolute; 
+      top: 0; 
+      bottom: 0; 
+      width: 100%; 
+    }
+    .control-panel {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: white;
+      padding: 10px;
+      border-radius: 4px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.2);
+      z-index: 10;
+    }
+    .radar-type-selector {
+      margin-bottom: 10px;
+    }
+    .site-info {
+      font-size: 14px;
+      margin-bottom: 10px;
+    }
+    .timestamp {
+      font-size: 12px;
+      color: #666;
+      margin-top: 5px;
+    }
   </style>
 </head>
 <body>
-<div id="map"></div>
-<script>
-  mapboxgl.accessToken = 'pk.eyJ1Ijoic3RldmViNzgiLCJhIjoiY205OTBzc3dpMDF0ZjJqcHRwOXhqYTJkbSJ9.suk6_mA7Rb3TeKmDHJM1XA';
+  <div id="map"></div>
+  <div class="control-panel">
+    <div class="site-info">
+      <strong>Selected Site: <span id="selected-site">None</span></strong>
+    </div>
+    <div class="radar-type-selector">
+      <label for="product">Radar Product:</label>
+      <select id="product" disabled>
+        <option value="reflectivity">Reflectivity</option>
+        <option value="velocity">Velocity</option>
+        <option value="differential_reflectivity">Differential Reflectivity</option>
+        <option value="cross_correlation_ratio">Correlation Coefficient</option>
+        <option value="storm_relative_velocity">Storm Relative</option>
+      </select>
+    </div>
+    <div class="timestamp">
+      Last Updated: <span id="last-updated">-</span>
+    </div>
+  </div>
 
-  const map = new mapboxgl.Map({
-    container: 'map',
-    style: 'mapbox://styles/mapbox/light-v10',
-    center: [-84.55, 33.36], // KFFC
-    zoom: 7
-  });
+  <script>
+    mapboxgl.accessToken = 'pk.eyJ1Ijoic3RldmViNzgiLCJhIjoiY205OTBzc3dpMDF0ZjJqcHRwOXhqYTJkbSJ9.suk6_mA7Rb3TeKmDHJM1XA';
+    
+    const map = new mapboxgl.Map({
+      container: 'map',
+      style: 'mapbox://styles/mapbox/light-v11',
+      center: [-84, 34],
+      zoom: 5
+    });
 
-  map.on('load', async () => {
-    try {
-      const boundsRes = await fetch('/static/KFFC_radar_bounds.json');
-      const bounds = await boundsRes.json();
+    let currentSite = null;
+    let currentOverlay = null;
+    let currentProduct = 'reflectivity';
+    
+    const productSelect = document.getElementById('product');
+    productSelect.addEventListener('change', () => {
+      currentProduct = productSelect.value;
+      if (currentSite) {
+        fetchRadarImage(currentSite, currentProduct);
+      }
+    });
 
-      map.addSource("radar", {
-        type: "image",
-        url: "/static/KFFC_radar_reflectivity.png",
-        coordinates: [
-          [bounds.west, bounds.north],  // top-left
-          [bounds.east, bounds.north],  // top-right
-          [bounds.east, bounds.south],  // bottom-right
-          [bounds.west, bounds.south]   // bottom-left
-        ]
-      });
+    map.on('load', async () => {
+      try {
+        // Load radar sites
+        const response = await fetch('/static/radar_sites.geojson');
+        const radarSites = await response.json();
+        
+        map.addSource('radarSites', {
+          type: 'geojson',
+          data: radarSites
+        });
 
-      map.addLayer({
-        id: "radar-layer",
-        type: "raster",
-        source: "radar",
-        paint: { "raster-opacity": 0.85 }
-      });
+        map.addLayer({
+          id: 'radar-points',
+          type: 'circle',
+          source: 'radarSites',
+          paint: {
+            'circle-radius': 6,
+            'circle-color': '#007cbf',
+            'circle-stroke-width': 1,
+            'circle-stroke-color': '#fff'
+          }
+        });
 
-      console.log("✅ Radar overlay loaded.");
-    } catch (err) {
-      console.error("❌ Error loading radar overlay:", err);
+        // Add popup on hover
+        const popup = new mapboxgl.Popup({
+          closeButton: false,
+          closeOnClick: false
+        });
+
+        map.on('mouseenter', 'radar-points', (e) => {
+          map.getCanvas().style.cursor = 'pointer';
+          
+          const feature = e.features[0];
+          const coordinates = feature.geometry.coordinates.slice();
+          const siteName = feature.properties.name;
+          const siteId = feature.properties.id;
+          
+          popup.setLngLat(coordinates)
+            .setHTML(`<strong>${siteName}</strong><br>Site ID: ${siteId}`)
+            .addTo(map);
+        });
+
+        map.on('mouseleave', 'radar-points', () => {
+          map.getCanvas().style.cursor = '';
+          popup.remove();
+        });
+
+        map.on('click', 'radar-points', (e) => {
+          const feature = e.features[0];
+          const siteId = feature.properties.id;
+          
+          document.getElementById('selected-site').textContent = `${feature.properties.name} (${siteId})`;
+          productSelect.disabled = false;
+          
+          currentSite = siteId;
+          fetchRadarImage(siteId, currentProduct);
+        });
+
+      } catch (err) {
+        console.error("Error loading radar sites:", err);
+      }
+    });
+
+    // Function to fetch and display radar image
+    async function fetchRadarImage(siteId, product) {
+      try {
+        // Remove previous radar overlay if any
+        if (map.getSource('radar-image')) {
+          map.removeLayer('radar-overlay');
+          map.removeSource('radar-image');
+        }
+        
+        // Make API request to get radar data
+        const response = await fetch(`/radar/${siteId}?field=${product}`);
+        
+        if (!response.ok) {
+          throw new Error(`Failed to fetch radar data: ${response.statusText}`);
+        }
+        
+        const data = await response.json();
+        
+        // Add the new radar image
+        map.addSource('radar-image', {
+          type: 'image',
+          url: `/radar/${siteId}?field=${product}&t=${Date.now()}`, // Cache buster
+          coordinates: [
+            [data.bounds.west, data.bounds.north], // top-left
+            [data.bounds.east, data.bounds.north], // top-right
+            [data.bounds.east, data.bounds.south], // bottom-right
+            [data.bounds.west, data.bounds.south]  // bottom-left
+          ]
+        });
+
+        map.addLayer({
+          id: 'radar-overlay',
+          type: 'raster',
+          source: 'radar-image',
+          paint: {
+            'raster-opacity': 0.85
+          }
+        });
+
+        // Update last updated timestamp
+        document.getElementById('last-updated').textContent = new Date().toLocaleString();
+      } catch (err) {
+        console.error("Error fetching radar data:", err);
+        alert(`Error loading radar data for ${siteId}: ${err.message}`);
+      }
     }
-  });
-</script>
+  </script>
 </body>
 </html>

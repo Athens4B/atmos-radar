@@ -1,0 +1,49 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "KJKL",
+        "name": "Jackson, KY"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-83.31, 37.59]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "KATL",
+        "name": "Atlanta, GA" 
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-84.44, 33.63]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "KFFC",
+        "name": "Peachtree City, GA"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-84.55, 33.36]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "KBMX",
+        "name": "Birmingham, AL"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [-86.77, 33.17]
+      }
+    }
+  ]
+}
