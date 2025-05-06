@@ -31,7 +31,7 @@ def plot_radar_with_bounds(radar, field, site_id):
 
     pm = ax.pcolormesh(
         lons, lats, data_filtered,
-        cmap="pyart_NWSRef",
+        cmap="NWSRef",
         vmin=-32, vmax=64,
         shading="auto"
     )
